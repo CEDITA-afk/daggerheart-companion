@@ -10,7 +10,7 @@ import '../widgets/tabs/status_tab.dart';
 import '../widgets/tabs/actions_tab.dart';
 import '../widgets/tabs/inventory_tab.dart';
 import '../widgets/tabs/cards_tab.dart';
-import '../widgets/tabs/battle_tab.dart'; // <--- IMPORTA IL NUOVO FILE
+import '../widgets/tabs/battle_tab.dart';
 
 class CharacterSheetScreen extends StatefulWidget {
   final Character character;
@@ -32,7 +32,6 @@ class _CharacterSheetScreenState extends State<CharacterSheetScreen> {
     return Consumer<RoomProvider>(
       builder: (context, roomProvider, child) {
         
-        // Controlliamo se c'è un combattimento attivo
         bool isCombatActive = roomProvider.currentRoomCode != null && roomProvider.activeCombatantsData.isNotEmpty;
 
         return Scaffold(
@@ -64,12 +63,11 @@ class _CharacterSheetScreenState extends State<CharacterSheetScreen> {
                 child: SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
                   child: Row(
-                    mainAxisAlignment: MainAxisAlignment.start, // Allineamento a sinistra per farci stare tutto
+                    mainAxisAlignment: MainAxisAlignment.start,
                     children: [
                       _buildTabItem(0, Icons.person, "STATUS", false),
                       _buildTabItem(1, Icons.flash_on, "AZIONI", false),
-                      // --- TAB SCONTRO SPECIALE ---
-                      _buildTabItem(2, Icons.flash_on, "SCONTRO", isCombatActive), // Usa swords o flash_on se swords da errore
+                      _buildTabItem(2, Icons.flash_on, "SCONTRO", isCombatActive),
                       _buildTabItem(3, Icons.backpack, "INVENTARIO", false),
                       _buildTabItem(4, Icons.style, "CARTE", false),
                     ],
@@ -82,9 +80,9 @@ class _CharacterSheetScreenState extends State<CharacterSheetScreen> {
                 child: IndexedStack(
                   index: _currentTabIndex,
                   children: [
-                    StatusTab(char: char), 
+                    StatusTab(character: char), // <--- CORRETTO: char -> character
                     ActionsTab(character: char),
-                    const BattleTab(), // <--- QUI LA NUOVA TAB
+                    const BattleTab(),
                     InventoryTab(char: char),
                     CardsTab(char: char),
                   ],
@@ -99,10 +97,8 @@ class _CharacterSheetScreenState extends State<CharacterSheetScreen> {
 
   Widget _buildTabItem(int index, IconData icon, String label, bool isAlert) {
     bool isSelected = _currentTabIndex == index;
-    
-    // Colore speciale se è la tab Scontro ed è attivo il combattimento
     Color iconColor = isSelected ? const Color(0xFFD4AF37) : Colors.grey;
-    if (isAlert && !isSelected) iconColor = Colors.redAccent; // Attira l'attenzione
+    if (isAlert && !isSelected) iconColor = Colors.redAccent;
     if (isAlert && isSelected) iconColor = Colors.red;
 
     return GestureDetector(
@@ -113,7 +109,6 @@ class _CharacterSheetScreenState extends State<CharacterSheetScreen> {
           border: isSelected 
               ? Border(bottom: BorderSide(color: iconColor, width: 3)) 
               : null,
-          // Sfondo leggermente rossiccio se è attivo il combattimento ma non selezionato
           color: isAlert && !isSelected ? Colors.red.withOpacity(0.1) : null,
         ),
         child: Column(
@@ -138,7 +133,8 @@ class _CharacterSheetScreenState extends State<CharacterSheetScreen> {
     if (value == 'save_json') {
       await JsonDataService.exportCharacterJson(context, char);
     } else if (value == 'export_pdf') {
-      await PdfExportService.printCharacterPdf(char);
+      // <--- CORRETTO: Chiamata al nuovo metodo statico
+      await PdfExportService.printCharacterPdf(context, char);
     }
   }
 }

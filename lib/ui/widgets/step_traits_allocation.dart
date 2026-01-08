@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../../logic/creation_provider.dart';
 
 class StepTraitsAllocation extends StatelessWidget {
@@ -7,8 +8,34 @@ class StepTraitsAllocation extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // I tratti nel gioco
-    final traitsKeys = ['agilita', 'forza', 'astuzia', 'istinto', 'presenza', 'conoscenza'];
+    // Mappa: Chiave Interna (Database) -> { Etichetta Visibile, Descrizione }
+    // Nota: 'astuzia' nel DB viene mostrata come 'Finezza'
+    final Map<String, Map<String, String>> statDefinitions = {
+      'agilita': {
+        'label': 'Agilità',
+        'desc': '(Scatta, salta, manovre)'
+      },
+      'forza': {
+        'label': 'Forza',
+        'desc': '(Solleva, fracassa, afferra)'
+      },
+      'astuzia': { 
+        'label': 'Finezza',
+        'desc': '(Controlla, nascondi, armeggia)'
+      },
+      'istinto': {
+        'label': 'Istinto',
+        'desc': '(Percepisci, fiuta, orientati)'
+      },
+      'presenza': {
+        'label': 'Presenza',
+        'desc': '(Affascina, esibisciti, inganna)'
+      },
+      'conoscenza': {
+        'label': 'Conoscenza',
+        'desc': '(Ricorda, analizza, comprendi)'
+      },
+    };
     
     // Standard array da rispettare
     final standardArray = [-1, 0, 0, 1, 1, 2];
@@ -22,18 +49,17 @@ class StepTraitsAllocation extends StatelessWidget {
         // Rimuoviamo dal pool i valori già trovati per vedere cosa manca
         for (var val in currentValues) {
           if (remainingPool.contains(val)) {
-            remainingPool.remove(val); // Rimuove la prima occorrenza trovata
+            remainingPool.remove(val); // Rimuove la prima occorrenza
           }
         }
         
-        // Se remainingPool è vuoto, la distribuzione è corretta (matematicamente)
         bool isValid = remainingPool.isEmpty && currentValues.length == 6;
 
         return SingleChildScrollView(
           padding: const EdgeInsets.all(16),
           child: Column(
             children: [
-              const Text("ASSEGNA I TRATTI", style: TextStyle(fontSize: 24, fontFamily: 'Cinzel', color: Colors.white)),
+              Text("ASSEGNA I TRATTI", style: GoogleFonts.cinzel(fontSize: 24, fontWeight: FontWeight.bold, color: const Color(0xFFD4AF37))),
               const SizedBox(height: 8),
               
               // --- BOX DI RIEPILOGO REGOLE ---
@@ -54,7 +80,6 @@ class StepTraitsAllocation extends StatelessWidget {
                     Wrap(
                       spacing: 8,
                       children: standardArray.toSet().toList().map((val) {
-                        // Contiamo quanti ne servono e quanti ne abbiamo messi
                         int countRequired = standardArray.where((v) => v == val).length;
                         int countUsed = currentValues.where((v) => v == val).length;
                         
@@ -81,7 +106,6 @@ class StepTraitsAllocation extends StatelessWidget {
                 ),
               ),
               
-              // --- MESSAGGIO DI ERRORE (Se presente nel provider) ---
               if (provider.validationError != null)
                 Padding(
                   padding: const EdgeInsets.only(top: 16.0),
@@ -102,26 +126,42 @@ class StepTraitsAllocation extends StatelessWidget {
               const SizedBox(height: 24),
 
               // --- LISTA INPUT TRATTI ---
-              ...traitsKeys.map((trait) {
-                int value = provider.tempStats[trait] ?? 0;
+              ...statDefinitions.entries.map((entry) {
+                String key = entry.key;
+                String label = entry.value['label']!;
+                String desc = entry.value['desc']!;
+                int value = provider.tempStats[key] ?? 0;
                 
                 return Card(
                   color: const Color(0xFF2C2C2C),
                   margin: const EdgeInsets.only(bottom: 12),
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                     child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text(
-                          trait.toUpperCase(), 
-                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)
+                        // NOME E DESCRIZIONE
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                label.toUpperCase(), 
+                                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)
+                              ),
+                              Text(
+                                desc,
+                                style: const TextStyle(color: Colors.grey, fontSize: 12, fontStyle: FontStyle.italic),
+                              ),
+                            ],
+                          ),
                         ),
+                        
+                        // CONTROLLI VALORE
                         Row(
                           children: [
                             IconButton(
                               icon: const Icon(Icons.remove_circle_outline, color: Colors.grey),
-                              onPressed: () => provider.updateTrait(trait, value - 1),
+                              onPressed: () => provider.updateTrait(key, value - 1),
                             ),
                             SizedBox(
                               width: 40,
@@ -137,7 +177,7 @@ class StepTraitsAllocation extends StatelessWidget {
                             ),
                             IconButton(
                               icon: const Icon(Icons.add_circle_outline, color: Colors.white),
-                              onPressed: () => provider.updateTrait(trait, value + 1),
+                              onPressed: () => provider.updateTrait(key, value + 1),
                             ),
                           ],
                         ),

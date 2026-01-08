@@ -1,16 +1,16 @@
+import '../data_manager.dart'; // Necessario per cercare stats classe/armatura
+
 class Character {
   final String id;
   String name;
   String classId;
-  String ancestryId; // Assicurati che questo campo esista e sia usato coerentemente
-  String communityId; // Idem per questo
+  String ancestryId;
+  String communityId;
   int level;
-  Map<String, int> stats; // O 'traits', scegli un nome e usalo ovunque. 'stats' è più comune.
+  Map<String, int> stats;
   List<String> inventory;
-  List<String> activeCardIds; // Meglio usare gli ID per evitare problemi di serializzazione complessa
-  // O List<Map<String, dynamic>> activeCards se preferisci salvare l'oggetto intero
+  List<String> activeCardIds;
 
-  // Statistiche vitali (non finali perché modificabili)
   int currentHp;
   int maxHp;
   int currentStress;
@@ -21,7 +21,6 @@ class Character {
   int gold;
   int evasionModifier;
 
-  // Campi opzionali
   String? subclassId;
   String? background;
   String? pronouns;
@@ -29,13 +28,58 @@ class Character {
   String armorName;
   List<String> weapons;
   List<String> experiences;
-  Map<String, String>? narrativeAnswers; // Per background e legami
-  Map<String, dynamic>? companion; // Per Ranger
+  Map<String, String>? narrativeAnswers;
+  Map<String, dynamic>? companion;
 
-  // Getter di compatibilità (se hai codice vecchio che usa questi nomi)
+  // Getter di compatibilità
   Map<String, int> get traits => stats;
   Map<String, String>? get bonds => narrativeAnswers;
   Map<String, String>? get backgroundAnswers => narrativeAnswers;
+
+  // --- NUOVI GETTER CALCOLATI (Fix Errori) ---
+  
+  // 1. Calcolo Evasione: Base Classe + Agilità + Modificatori
+  int get evasion {
+    int base = 10;
+    // Cerca la classe nel DataManager
+    final classData = DataManager().getClassById(classId);
+    if (classData != null && classData['core_stats'] != null) {
+      base = classData['core_stats']['base_evasion'] ?? 10;
+    }
+    // Agilità
+    int agility = stats['agilita'] ?? 0;
+    
+    return base + agility + evasionModifier;
+  }
+
+  // 2. Calcolo Soglie Danno (Parsing dell'Armatura)
+  // Se l'armatura ha "Soglie 5/11", major=5, severe=11
+  List<int> get _damageThresholds {
+    if (armorName.isEmpty) return [1, 2]; // Default senza armatura (molto basso)
+    
+    // Cerca item stats
+    final itemData = DataManager().getItemStats(armorName);
+    // Cerca stringa tipo "Soglie 7/15" o nel campo stats
+    String statsText = itemData['stats'] ?? "";
+    
+    // Regex per trovare "X/Y"
+    final regex = RegExp(r'(\d+)\/(\d+)');
+    final match = regex.firstMatch(statsText);
+    
+    if (match != null) {
+      int major = int.parse(match.group(1)!);
+      int severe = int.parse(match.group(2)!);
+      return [major, severe];
+    }
+    
+    // Fallback generico basato su Armor Score se non troviamo il testo
+    // Daggerheart approssimativo: Major ~ Score*2, Severe ~ Score*4? 
+    // Meglio un default sicuro.
+    return [armorScore + 2, (armorScore * 2) + 4]; 
+  }
+
+  int get majorThreshold => _damageThresholds[0];
+  int get severeThreshold => _damageThresholds[1];
 
 
   Character({
@@ -47,7 +91,7 @@ class Character {
     required this.level,
     required this.stats,
     required this.inventory,
-    required this.activeCardIds, // O activeCards
+    required this.activeCardIds,
     this.currentHp = 6,
     this.maxHp = 6,
     this.currentStress = 0,
@@ -78,7 +122,7 @@ class Character {
       level: json['level'] ?? 1,
       stats: Map<String, int>.from(json['stats'] ?? {}),
       inventory: List<String>.from(json['inventory'] ?? []),
-      activeCardIds: List<String>.from(json['activeCardIds'] ?? []), // O gestione activeCards
+      activeCardIds: List<String>.from(json['activeCardIds'] ?? []),
       currentHp: json['currentHp'] ?? 6,
       maxHp: json['maxHp'] ?? 6,
       currentStress: json['currentStress'] ?? 0,
