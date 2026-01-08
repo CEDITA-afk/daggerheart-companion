@@ -47,123 +47,132 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
           style: GoogleFonts.cinzel(color: const Color(0xFFD4AF37), fontWeight: FontWeight.bold),
           textAlign: TextAlign.center,
         ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              "Per recuperare i tuoi dati da un altro dispositivo, inserisci qui il tuo Codice di Recupero.",
-              style: GoogleFonts.lato(color: Colors.white70, fontSize: 14),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: codeController,
-              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-              textAlign: TextAlign.center,
-              decoration: InputDecoration(
-                filled: true,
-                fillColor: Colors.black45,
-                hintText: "Incolla codice qui...",
-                hintStyle: const TextStyle(color: Colors.grey),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.grey.shade800)),
-                focusedBorder: const OutlineInputBorder(borderSide: BorderSide(color: Color(0xFFD4AF37))),
+        // CORREZIONE: Abbiamo spostato tutto il layout qui dentro per evitare errori
+        content: SizedBox(
+          width: double.maxFinite, // Occupa la larghezza disponibile
+          child: Column(
+            mainAxisSize: MainAxisSize.min, // Altezza minima necessaria
+            children: [
+              Text(
+                "Per recuperare i tuoi dati da un altro dispositivo, inserisci qui il tuo Codice di Recupero.",
+                style: GoogleFonts.lato(color: Colors.white70, fontSize: 14),
+                textAlign: TextAlign.center,
               ),
-            ),
-            const SizedBox(height: 24),
-            const Divider(color: Colors.white24),
-            const SizedBox(height: 16),
-            Text(
-              "Oppure continua come NUOVO UTENTE con questo codice:",
-              style: GoogleFonts.lato(color: Colors.white70, fontSize: 12),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 8),
-            GestureDetector(
-              onTap: () {
-                Clipboard.setData(ClipboardData(text: currentId));
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text("Codice copiato negli appunti!"))
-                );
-              },
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFD4AF37).withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: const Color(0xFFD4AF37))
+              const SizedBox(height: 16),
+              TextField(
+                controller: codeController,
+                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                textAlign: TextAlign.center,
+                decoration: InputDecoration(
+                  filled: true,
+                  fillColor: Colors.black45,
+                  hintText: "Incolla codice qui...",
+                  hintStyle: const TextStyle(color: Colors.grey),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                  enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.grey.shade800)),
+                  focusedBorder: const OutlineInputBorder(borderSide: BorderSide(color: Color(0xFFD4AF37))),
                 ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      currentId,
-                      style: const TextStyle(color: Color(0xFFD4AF37), fontWeight: FontWeight.bold, fontSize: 16),
+              ),
+              const SizedBox(height: 24),
+              const Divider(color: Colors.white24),
+              const SizedBox(height: 16),
+              Text(
+                "Oppure continua come NUOVO UTENTE con questo codice:",
+                style: GoogleFonts.lato(color: Colors.white70, fontSize: 12),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 8),
+              GestureDetector(
+                onTap: () {
+                  Clipboard.setData(ClipboardData(text: currentId));
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text("Codice copiato negli appunti!"))
+                  );
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFD4AF37).withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: const Color(0xFFD4AF37))
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        currentId,
+                        style: const TextStyle(color: Color(0xFFD4AF37), fontWeight: FontWeight.bold, fontSize: 16),
+                      ),
+                      const SizedBox(width: 8),
+                      const Icon(Icons.copy, color: Color(0xFFD4AF37), size: 16),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                "(Clicca per copiare e salvare il tuo codice)",
+                style: GoogleFonts.lato(color: Colors.grey, fontSize: 10),
+              ),
+              const SizedBox(height: 24),
+              
+              // --- PULSANTI SPOSTATI QUI DENTRO ---
+              Row(
+                children: [
+                  // BOTTONE 1: Entra con Codice Inserito
+                  Expanded(
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.grey.shade800,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      ),
+                      onPressed: () async {
+                        final inputCode = codeController.text.trim();
+                        if (inputCode.isNotEmpty) {
+                          await roomProv.forceUserId(inputCode);
+                          creationProv.setUserId(inputCode);
+                          await creationProv.loadSavedCharacters();
+                          
+                          if (context.mounted) {
+                            Navigator.pop(ctx);
+                            _navigate(context, isGm);
+                          }
+                        } else {
+                           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Inserisci un codice valido o usa 'Nuovo Utente'")));
+                        }
+                      },
+                      child: const Text("USA CODICE", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
                     ),
-                    const SizedBox(width: 8),
-                    const Icon(Icons.copy, color: Color(0xFFD4AF37), size: 16),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              "(Clicca per copiare e salvare il tuo codice)",
-              style: GoogleFonts.lato(color: Colors.grey, fontSize: 10),
-            ),
-          ],
+                  ),
+                  const SizedBox(width: 12),
+                  // BOTTONE 2: Nuovo Utente
+                  Expanded(
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFD4AF37),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      ),
+                      onPressed: () async {
+                        creationProv.setUserId(currentId);
+                        await creationProv.loadSavedCharacters();
+                        
+                        if (context.mounted) {
+                          Navigator.pop(ctx);
+                          _navigate(context, isGm);
+                        }
+                      },
+                      child: const Text("NUOVO UTENTE", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 12)),
+                    ),
+                  ),
+                ],
+              )
+            ],
+          ),
         ),
-        actionsAlignment: MainAxisAlignment.spaceBetween,
-        actions: [
-          // BOTTONE 1: Entra con Codice Inserito
-          Expanded(
-            child: ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.grey.shade800,
-                padding: const EdgeInsets.symmetric(vertical: 12),
-              ),
-              onPressed: () async {
-                final inputCode = codeController.text.trim();
-                if (inputCode.isNotEmpty) {
-                  // 1. Forza l'ID nel RoomProvider
-                  await roomProv.forceUserId(inputCode);
-                  // 2. Setta l'ID nel CreationProvider e carica i dati
-                  creationProv.setUserId(inputCode);
-                  await creationProv.loadSavedCharacters();
-                  
-                  if (context.mounted) {
-                    Navigator.pop(ctx); // Chiudi dialog
-                    _navigate(context, isGm);
-                  }
-                } else {
-                   ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Inserisci un codice valido o usa 'Nuovo Utente'")));
-                }
-              },
-              child: const Text("USA CODICE", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-            ),
-          ),
-          const SizedBox(width: 12),
-          // BOTTONE 2: Nuovo Utente (Usa ID generato)
-          Expanded(
-            child: ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFD4AF37),
-                padding: const EdgeInsets.symmetric(vertical: 12),
-              ),
-              onPressed: () async {
-                // L'ID è già stato generato da init(), lo confermiamo
-                creationProv.setUserId(currentId);
-                await creationProv.loadSavedCharacters(); // Carica (probabilmente vuoto, ma fa il sync)
-                
-                if (context.mounted) {
-                  Navigator.pop(ctx);
-                  _navigate(context, isGm);
-                }
-              },
-              child: const Text("NUOVO UTENTE", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
-            ),
-          ),
-        ],
+        // Actions vuoto perché abbiamo messo i bottoni nel content
+        actions: [],
       ),
     );
   }
@@ -188,16 +197,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
       backgroundColor: Colors.black,
       body: Stack(
         children: [
-          // Sfondo
-          Container(
-            decoration: const BoxDecoration(
-              image: DecorationImage(
-                image: AssetImage('assets/images/daggerheart_cover.webp'), // Assicurati di avere un'immagine o rimuovi
-                fit: BoxFit.cover,
-                opacity: 0.4,
-              ),
-            ),
-          ),
+          // Sfondo con gestione errori immagine
           Container(
             decoration: BoxDecoration(
               gradient: LinearGradient(
@@ -210,9 +210,19 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                 ],
               ),
             ),
+            // Se l'immagine non c'è, usa solo il gradiente
+            child: Image.asset(
+              'assets/images/daggerheart_cover.webp',
+              fit: BoxFit.cover,
+              width: double.infinity,
+              height: double.infinity,
+              opacity: const AlwaysStoppedAnimation(0.4),
+              errorBuilder: (context, error, stackTrace) {
+                return const SizedBox(); // Niente immagine se fallisce il caricamento
+              },
+            ),
           ),
           
-          // Contenuto
           SafeArea(
             child: Center(
               child: Padding(
@@ -223,13 +233,14 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                     Text(
                       "DAGGERHEART",
                       style: GoogleFonts.cinzelDecorative(
-                        fontSize: 56,
+                        fontSize: 48, // Ridotto leggermente per evitare overflow su schermi piccoli
                         fontWeight: FontWeight.bold,
                         color: const Color(0xFFD4AF37),
                         shadows: [
                           const Shadow(color: Colors.black, blurRadius: 10, offset: Offset(2, 2))
                         ]
                       ),
+                      textAlign: TextAlign.center,
                     ),
                     Text(
                       "COMPANION APP",
@@ -238,27 +249,26 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                         letterSpacing: 4,
                         color: Colors.white70,
                       ),
+                      textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 60),
 
-                    // Bottone Giocatore
                     _buildRoleButton(
                       context, 
                       "GIOCATORE", 
                       "Crea il tuo eroe, gestisci equipaggiamento e partecipa alle sessioni.",
                       Icons.person,
-                      () => _showIdentityDialog(context, false), // <--- Apre il Dialog
+                      () => _showIdentityDialog(context, false),
                     ),
                     
                     const SizedBox(height: 20),
 
-                    // Bottone GM
                     _buildRoleButton(
                       context, 
                       "GAMEMASTER", 
                       "Crea stanze, gestisci nemici e tieni traccia dell'azione.",
                       Icons.security,
-                      () => _showIdentityDialog(context, true), // <--- Apre il Dialog
+                      () => _showIdentityDialog(context, true),
                     ),
                   ],
                 ),
