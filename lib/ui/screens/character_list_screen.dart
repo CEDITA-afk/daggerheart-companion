@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart'; // Per Clipboard
 import 'package:provider/provider.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../../logic/creation_provider.dart';
 import '../../logic/room_provider.dart';
 import '../../data/models/character.dart';
 import 'character_sheet_screen.dart';
 import 'wizard_screen.dart';
+import 'lobby_screen.dart';
 
 class CharacterListScreen extends StatefulWidget {
   const CharacterListScreen({super.key});
@@ -18,74 +19,70 @@ class _CharacterListScreenState extends State<CharacterListScreen> {
   @override
   void initState() {
     super.initState();
-    // Inizializza l'ID utente nel CreationProvider usando quello del RoomProvider
+    // Refresh dei personaggi all'avvio della schermata
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final roomProv = Provider.of<RoomProvider>(context, listen: false);
       final creationProv = Provider.of<CreationProvider>(context, listen: false);
-      
-      // Assicuriamoci che l'ID sia inizializzato
-      if (roomProv.myUserId == null) {
-        roomProv.init().then((_) {
-           creationProv.setUserId(roomProv.myUserId!);
-           creationProv.loadSavedCharacters();
-        });
-      } else {
+      if (roomProv.myUserId != null) {
         creationProv.setUserId(roomProv.myUserId!);
         creationProv.loadSavedCharacters();
       }
     });
   }
 
-  void _showRecoveryDialog(BuildContext context) {
-    final roomProv = Provider.of<RoomProvider>(context, listen: false);
-    final myId = roomProv.myUserId ?? "Non disponibile";
+  // LOGICA PER UNIRSI ALLA STANZA
+  void _joinRoomDialog(BuildContext context, Character character) {
     final controller = TextEditingController();
-
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: const Color(0xFF222222),
-        title: const Text("SALVATAGGIO CLOUD", style: TextStyle(color: Colors.white)),
+        title: Text("UNISCITI ALLA PARTITA", style: GoogleFonts.cinzel(color: const Color(0xFFD4AF37))),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text("Il tuo Codice di Recupero :", style: TextStyle(color: Colors.grey)),
-            const SizedBox(height: 8),
-            SelectableText(myId, style: const TextStyle(color: Colors.amber, fontWeight: FontWeight.bold, fontSize: 18)),
+            Text("Entra come: ${character.name}", style: const TextStyle(color: Colors.white70)),
             const SizedBox(height: 16),
-            const Text("Per recuperare i dati su un altro dispositivo, inserisci qui il tuo vecchio codice:", style: TextStyle(color: Colors.white70)),
             TextField(
               controller: controller,
               style: const TextStyle(color: Colors.white),
               decoration: const InputDecoration(
-                hintText: "Incolla qui il codice...",
-                hintStyle: TextStyle(color: Colors.grey),
-                enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.grey)),
+                labelText: "Codice Stanza (6 cifre)",
+                border: OutlineInputBorder(),
+                filled: true,
+                fillColor: Colors.black26,
               ),
+              keyboardType: TextInputType.number,
             ),
           ],
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text("CHIUDI"),
-          ),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("ANNULLA")),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.amber),
-            onPressed: () {
-              if (controller.text.isNotEmpty) {
-                // Imposta manualmente il nuovo ID nel sistema
-                roomProv.forceUserId(controller.text.trim());
-                Provider.of<CreationProvider>(context, listen: false).setUserId(controller.text.trim());
-                Provider.of<CreationProvider>(context, listen: false).loadSavedCharacters();
-                Navigator.pop(ctx);
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Profilo recuperato!")));
+            onPressed: () async {
+              final code = controller.text.trim();
+              if (code.length < 4) {
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Codice troppo corto")));
+                return;
+              }
+              Navigator.pop(ctx); // Chiudi dialog
+              
+              try {
+                // Chiamata al provider per unirsi
+                await Provider.of<RoomProvider>(context, listen: false).joinRoom(code, character);
+                
+                if (mounted) {
+                  // Vai alla Lobby
+                  Navigator.push(context, MaterialPageRoute(builder: (_) => const LobbyScreen()));
+                }
+              } catch (e) {
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Errore: $e"), backgroundColor: Colors.red));
               }
             },
-            child: const Text("RECUPERA", style: TextStyle(color: Colors.black)),
+            child: const Text("ENTRA"),
           ),
         ],
-      )
+      ),
     );
   }
 
@@ -94,13 +91,7 @@ class _CharacterListScreenState extends State<CharacterListScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text("I TUOI EROI"),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.cloud_sync),
-            tooltip: "Codice Recupero / Sync",
-            onPressed: () => _showRecoveryDialog(context),
-          )
-        ],
+        // Il tasto back torna automaticamente al Main Menu grazie al Navigator
       ),
       body: Consumer<CreationProvider>(
         builder: (context, provider, child) {
@@ -108,7 +99,7 @@ class _CharacterListScreenState extends State<CharacterListScreen> {
             future: provider.loadSavedCharacters(), 
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(child: CircularProgressIndicator());
+                return const Center(child: CircularProgressIndicator(color: Color(0xFFD4AF37)));
               }
               final characters = snapshot.data ?? [];
 
@@ -116,33 +107,76 @@ class _CharacterListScreenState extends State<CharacterListScreen> {
                 return Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
-                    children: const [
-                      Icon(Icons.person_off, size: 64, color: Colors.grey),
-                      SizedBox(height: 16),
-                      Text("Nessun personaggio trovato.", style: TextStyle(color: Colors.grey)),
-                      Text("Creane uno nuovo o usa l'icona Cloud per recuperare.", style: TextStyle(color: Colors.grey, fontSize: 12)),
+                    children: [
+                      const Icon(Icons.person_outline, size: 64, color: Colors.grey),
+                      const SizedBox(height: 16),
+                      const Text("Non hai ancora creato nessun eroe.", style: TextStyle(color: Colors.grey)),
                     ],
                   ),
                 );
               }
 
               return ListView.builder(
+                padding: const EdgeInsets.all(16),
                 itemCount: characters.length,
                 itemBuilder: (context, index) {
                   final char = characters[index];
                   return Card(
                     color: const Color(0xFF2C2C2C),
-                    margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    child: ListTile(
-                      leading: const CircleAvatar(backgroundColor: Colors.amber, child: Icon(Icons.person, color: Colors.black)),
-                      title: Text(char.name, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                      subtitle: Text("Livello ${char.level} ${char.classId}", style: const TextStyle(color: Colors.grey)),
-                      onTap: () {
-                        Navigator.push(context, MaterialPageRoute(builder: (_) => CharacterSheetScreen(character: char)));
-                      },
-                      trailing: IconButton(
-                        icon: const Icon(Icons.delete, color: Colors.red),
-                        onPressed: () => provider.deleteCharacter(char.id),
+                    margin: const EdgeInsets.only(bottom: 16),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    child: Padding(
+                      padding: const EdgeInsets.all(12.0),
+                      child: Column(
+                        children: [
+                          ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            leading: CircleAvatar(
+                              radius: 24,
+                              backgroundColor: const Color(0xFFD4AF37),
+                              child: Text(char.name.isNotEmpty ? char.name[0].toUpperCase() : "?", 
+                                style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 20)),
+                            ),
+                            title: Text(char.name, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18)),
+                            subtitle: Text("Livello ${char.level} ${char.classId}", style: const TextStyle(color: Colors.grey)),
+                            trailing: IconButton(
+                              // CORRETTO: Uso [400] e rimosso const
+                              icon: Icon(Icons.delete, color: Colors.red[400]),
+                              onPressed: () => provider.deleteCharacter(char.id),
+                            ),
+                          ),
+                          const Divider(color: Colors.white10),
+                          Row(
+                            children: [
+                              // TASTO SCHEDA
+                              Expanded(
+                                child: OutlinedButton.icon(
+                                  icon: const Icon(Icons.description, size: 18),
+                                  label: const Text("SCHEDA"),
+                                  style: OutlinedButton.styleFrom(foregroundColor: Colors.white),
+                                  onPressed: () {
+                                    Navigator.push(context, MaterialPageRoute(builder: (_) => CharacterSheetScreen(character: char)));
+                                  },
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              // TASTO GIOCA (ENTRA IN STANZA)
+                              Expanded(
+                                child: ElevatedButton.icon(
+                                  icon: const Icon(Icons.login, size: 18),
+                                  label: const Text("GIOCA"),
+                                  // CORRETTO: fontWeight spostato dentro textStyle
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: const Color(0xFFD4AF37), 
+                                    foregroundColor: Colors.black,
+                                    textStyle: const TextStyle(fontWeight: FontWeight.bold),
+                                  ),
+                                  onPressed: () => _joinRoomDialog(context, char),
+                                ),
+                              ),
+                            ],
+                          )
+                        ],
                       ),
                     ),
                   );
@@ -152,9 +186,10 @@ class _CharacterListScreenState extends State<CharacterListScreen> {
           );
         },
       ),
-      floatingActionButton: FloatingActionButton(
+      floatingActionButton: FloatingActionButton.extended(
         backgroundColor: const Color(0xFFD4AF37),
-        child: const Icon(Icons.add, color: Colors.black),
+        icon: const Icon(Icons.add, color: Colors.black),
+        label: const Text("NUOVO EROE", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
         onPressed: () {
           Provider.of<CreationProvider>(context, listen: false).resetDraft();
           Navigator.push(context, MaterialPageRoute(builder: (_) => const WizardScreen()));

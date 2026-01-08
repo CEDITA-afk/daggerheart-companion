@@ -6,7 +6,8 @@ import '../data/models/character.dart';
 import '../data/models/adversary.dart';
 
 class RoomProvider extends ChangeNotifier {
-  final FirebaseFirestore _db = FirebaseFirestore.instance;
+  // Getter lazy per evitare crash all'avvio se Firebase non è pronto
+  FirebaseFirestore get _db => FirebaseFirestore.instance;
   
   // Stato Sessione
   String? currentRoomCode;
@@ -53,7 +54,7 @@ class RoomProvider extends ChangeNotifier {
           }
           notifyListeners();
         } else {
-          // La stanza non esiste più online -> Logout
+          // La stanza non esiste più online -> Logout sessione (non utente)
           await exitRoom();
         }
       } catch (e) {
@@ -65,12 +66,36 @@ class RoomProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  // --- RECUPERO ACCOUNT (NUOVO METODO) ---
+  // --- RECUPERO ACCOUNT ---
   // Permette di forzare un ID utente specifico (es. recuperato da un altro dispositivo)
   Future<void> forceUserId(String newId) async {
     final prefs = await SharedPreferences.getInstance();
     myUserId = newId;
     await prefs.setString('user_device_id', newId);
+    notifyListeners();
+  }
+
+  // --- LOGOUT COMPLETO (NUOVO METODO) ---
+  // Cancella l'identità locale per permettere il cambio utente
+  Future<void> logout() async {
+    final prefs = await SharedPreferences.getInstance();
+    
+    // 1. Cancella l'identità salvata
+    await prefs.remove('user_device_id');
+    
+    // 2. Cancella i dati della sessione corrente
+    await prefs.remove('room_code');
+    await prefs.remove('is_gm');
+    await prefs.remove('char_id');
+    
+    // 3. Reset variabili locali
+    myUserId = null;
+    currentRoomCode = null;
+    isGm = false;
+    myCharacterId = null;
+    playersStream = null;
+    activeCombatantsData = [];
+    
     notifyListeners();
   }
 
@@ -212,20 +237,15 @@ class RoomProvider extends ChangeNotifier {
   }
 
   // --- COMUNE: ESCI DALLA STANZA ---
+  // Nota: Questo esce solo dalla stanza attuale, NON fa logout dell'utente
   Future<void> exitRoom() async {
     final prefs = await SharedPreferences.getInstance();
     
-    // Manteniamo solo l'ID dispositivo, cancelliamo i dati di sessione
-    String? deviceId = prefs.getString('user_device_id');
-    await prefs.clear();
+    await prefs.remove('room_code');
+    await prefs.remove('is_gm');
+    await prefs.remove('char_id');
     
-    // Ripristiniamo l'ID dispositivo fondamentale
-    if (deviceId != null) {
-      await prefs.setString('user_device_id', deviceId);
-      myUserId = deviceId; // Reimpostiamo la variabile locale
-    }
-    
-    // Reset stato locale
+    // Reset stato locale della stanza
     currentRoomCode = null;
     isGm = false;
     myCharacterId = null;

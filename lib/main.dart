@@ -1,31 +1,24 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_core/firebase_core.dart';
 import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
-// IMPORTA IL FILE APPENA CREATO
-import 'firebase_options.dart'; 
+import 'package:firebase_core/firebase_core.dart';
+import 'firebase_options.dart';
 
-// ... import dei provider ...
 import 'logic/creation_provider.dart';
 import 'logic/combat_provider.dart';
 import 'logic/room_provider.dart';
 import 'logic/gm_provider.dart';
 import 'data/data_manager.dart';
-import 'ui/screens/welcome_screen.dart';
+import 'ui/screens/startup_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
   await DataManager().loadAllData();
 
   try {
-    // Inizializza usando il file firebase_options.dart
-    await Firebase.initializeApp(
-      options: DefaultFirebaseOptions.currentPlatform,
-    );
-    print("Firebase connesso!");
+    await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   } catch (e) {
-    print("ERRORE FIREBASE: $e");
+    print("Errore Firebase: $e");
   }
 
   runApp(const MyApp());
@@ -36,53 +29,121 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // --- PALETTE DAGGERHEART ---
+    const dhGold = Color(0xFFCFB876);        // Oro spento/Pergamena
+    const dhGoldBright = Color(0xFFF4D03F);  // Oro brillante (accenti)
+    const dhBackground = Color(0xFF1A1625);  // Viola scurissimo (quasi nero)
+    const dhSurface = Color(0xFF2A2438);     // Viola scuro (card/dialog)
+    const dhPurpleAccent = Color(0xFF6A4C93); // Viola medio
+
     return MultiProvider(
       providers: [
+        ChangeNotifierProvider(create: (_) => RoomProvider()),
         ChangeNotifierProvider(create: (_) => CreationProvider()),
         ChangeNotifierProvider(create: (_) => CombatProvider()),
-        ChangeNotifierProvider(create: (_) => RoomProvider()),
         ChangeNotifierProvider(create: (_) => GmProvider()),
       ],
       child: MaterialApp(
         title: 'Daggerheart Companion',
         debugShowCheckedModeBanner: false,
         theme: ThemeData.dark().copyWith(
-          scaffoldBackgroundColor: const Color(0xFF121212),
-          primaryColor: const Color(0xFFD4AF37),
+          scaffoldBackgroundColor: dhBackground,
+          primaryColor: dhGold,
+          
           colorScheme: const ColorScheme.dark(
-            primary: Color(0xFFD4AF37),
-            secondary: Colors.amberAccent,
-            surface: Color(0xFF1E1E1E),
+            primary: dhGold,
+            onPrimary: Colors.black, // Testo nero su bottoni oro
+            secondary: dhPurpleAccent,
+            surface: dhSurface,
+            onSurface: Colors.white,
+            error: Color(0xFFCF6679),
           ),
+          
+          // Testi
+          textTheme: GoogleFonts.latoTextTheme(ThemeData.dark().textTheme).apply(
+            bodyColor: const Color(0xFFE0E0E0), // Bianco sporco per leggibilità
+            displayColor: dhGold,
+          ),
+          
+          // AppBar
           appBarTheme: const AppBarTheme(
-            backgroundColor: Color(0xFF1E1E1E),
+            backgroundColor: dhBackground,
             elevation: 0,
             centerTitle: true,
             titleTextStyle: TextStyle(
-              fontFamily: 'Cinzel',
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
+              fontFamily: 'Cinzel', 
+              fontSize: 22, 
+              fontWeight: FontWeight.bold, 
+              color: dhGold
             ),
+            iconTheme: IconThemeData(color: dhGold),
           ),
-          textTheme: const TextTheme(
-            bodyMedium: TextStyle(fontFamily: 'Lato', color: Colors.white),
-          ),
+          
+          // Bottoni
           elevatedButtonTheme: ElevatedButtonThemeData(
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFD4AF37),
-              foregroundColor: Colors.black,
+              backgroundColor: dhGold,
+              foregroundColor: Colors.black, // Testo scuro su oro
+              textStyle: const TextStyle(fontWeight: FontWeight.bold, fontFamily: 'Cinzel'),
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
             ),
           ),
-          inputDecorationTheme: const InputDecorationTheme(
+          
+          outlinedButtonTheme: OutlinedButtonThemeData(
+            style: OutlinedButton.styleFrom(
+              foregroundColor: dhGold,
+              side: const BorderSide(color: dhGold),
+              textStyle: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+          ),
+          
+          // Input
+          inputDecorationTheme: InputDecorationTheme(
             filled: true,
-            fillColor: Colors.black26,
-            border: OutlineInputBorder(),
-            labelStyle: TextStyle(color: Colors.grey),
+            fillColor: dhSurface,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide.none,
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: BorderSide(color: dhPurpleAccent.withOpacity(0.3)),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(8),
+              borderSide: const BorderSide(color: dhGold),
+            ),
+            labelStyle: const TextStyle(color: Colors.white60),
+            hintStyle: const TextStyle(color: Colors.white30),
+          ),
+          
+          // CORREZIONE QUI: Usa CardThemeData invece di CardTheme
+          cardTheme: CardThemeData(
+            color: dhSurface,
+            elevation: 4,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+              side: BorderSide(color: dhGold.withOpacity(0.1)), // Sottile bordo oro
+            ),
+          ),
+          
+          // CORREZIONE QUI: Usa DialogThemeData invece di DialogTheme
+          dialogTheme: DialogThemeData(
+            backgroundColor: dhSurface,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+              side: const BorderSide(color: dhGold, width: 2), // Bordo oro nei dialoghi
+            ),
+            titleTextStyle: const TextStyle(
+              fontFamily: 'Cinzel',
+              fontSize: 20,
+              color: dhGold,
+              fontWeight: FontWeight.bold
+            ),
           ),
         ),
-        // Qui impostiamo la nuova schermata di benvenuto come punto di partenza
-        home: const WelcomeScreen(),
+        home: const StartupScreen(),
       ),
     );
   }
