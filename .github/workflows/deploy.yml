@@ -2,30 +2,26 @@ name: Deploy to GitHub Pages
 
 on:
   push:
-    branches: [ main ] # <--- Nella nuova repo il ramo principale è 'main'
+    branches: [ main, master ] # Assicurati che il tuo branch sia 'main' o 'master'
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
-
+          
       - name: Get dependencies
         run: flutter pub get
 
+      # QUESTO PASSAGGIO È FONDAMENTALE: --base-href
+      # Sostituisci 'daggerheart-companion' con il nome ESATTO della tua repository se diverso
       - name: Build Web
-        run: |
-          flutter build web --release \
-            --base-href "/daggerheart-companion/" \
-            --dart-define=FIREBASE_API_KEY=${{ secrets.FIREBASE_API_KEY }} \
-            --dart-define=FIREBASE_APP_ID=${{ secrets.FIREBASE_APP_ID }} \
-            --dart-define=FIREBASE_MESSAGING_SENDER_ID=${{ secrets.FIREBASE_MESSAGING_SENDER_ID }} \
-            --dart-define=FIREBASE_PROJECT_ID=${{ secrets.FIREBASE_PROJECT_ID }}
+        run: flutter build web --release --base-href "/daggerheart-companion/" --web-renderer html
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3
