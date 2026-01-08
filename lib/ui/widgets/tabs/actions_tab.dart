@@ -1,252 +1,330 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../../../data/models/character.dart';
-import '../../../data/data_manager.dart';
-import '../../widgets/dice_roller_dialog.dart';
+import '../../../data/data_manager.dart'; 
+import '../dice_roller_dialog.dart';
 
-class ActionsTab extends StatefulWidget {
-  final Character char;
-  final Map<String, dynamic>? classData;
+class ActionsTab extends StatelessWidget {
+  final Character character;
 
-  const ActionsTab({super.key, required this.char, this.classData});
+  const ActionsTab({super.key, required this.character});
 
-  @override
-  State<ActionsTab> createState() => _ActionsTabState();
-}
+  void _rollDualityDice(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) => DiceRollerDialog(
+        character: character,
+      ),
+    );
+  }
 
-class _ActionsTabState extends State<ActionsTab> {
+  void _rollWeapon(BuildContext context, String weaponName, int attackMod, String damageDice) {
+    showDialog(
+      context: context,
+      builder: (ctx) => DiceRollerDialog(
+        character: character,
+        initialModifier: attackMod,
+        weaponName: weaponName,
+        damageDice: damageDice,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final char = widget.char;
-    final classData = widget.classData;
-    final features = classData?['class_features'] as List? ?? [];
-    
-    // Sottoclasse
-    final subclasses = classData?['subclasses'] as List? ?? [];
-    final subclassData = subclasses.firstWhere(
-      (s) => s['id'] == char.subclassId, 
-      orElse: () => <String, dynamic>{}
-    );
-    final subFeatures = subclassData['features'] as List? ?? [];
+    final dhGold = Theme.of(context).primaryColor;
+    final weapons = character.weapons;
+    final dm = DataManager();
 
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        // --- SEZIONE RANGER: COMPAGNO ---
-        if (char.classId == 'ranger' && char.subclassId == 'ranger_beastbound') ...[
-          _buildCompanionButton(context),
-          const SizedBox(height: 20),
-        ],
+    // --- 1. AGGREGAZIONE DI TUTTE LE ABILITÀ ---
+    List<Map<String, dynamic>> allAbilities = [];
 
-        // --- ARMI ---
-        const Text("ARMI EQUIPAGGIATE", style: TextStyle(color: Color(0xFFD4AF37), fontWeight: FontWeight.bold, letterSpacing: 1.2)),
-        const SizedBox(height: 10),
-        
-        if (char.weapons.isEmpty) 
-          const Text("Nessuna arma equipaggiata.", style: TextStyle(color: Colors.grey)),
+    // A. CLASSE
+    final classData = dm.getClassById(character.classId);
+    if (classData != null) {
+      final features = classData['features'] ?? classData['core_features'];
+      if (features != null && features is List) {
+        for (var f in features) {
+          allAbilities.add({
+            'title': f['name'] ?? 'Abilità Classe',
+            'desc': f['description'] ?? f['text'] ?? '',
+            'source': 'CLASSE',
+            'color': dhGold
+          });
+        }
+      }
 
-        ...char.weapons.map((w) {
-          int? damageDie;
-          if (w.contains("d4")) damageDie = 4;
-          else if (w.contains("d6")) damageDie = 6;
-          else if (w.contains("d8")) damageDie = 8;
-          else if (w.contains("d10")) damageDie = 10;
-          else if (w.contains("d12")) damageDie = 12;
-          else if (w.contains("d20")) damageDie = 20;
-
-          return Card(
-            color: const Color(0xFF2C2C2C),
-            margin: const EdgeInsets.only(bottom: 8),
-            child: ListTile(
-              leading: const Icon(Icons.gavel, color: Colors.white70),
-              title: Text(w, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
-              trailing: IconButton(
-                icon: const Icon(Icons.casino, color: Colors.redAccent),
-                onPressed: () => showDialog(context: context, builder: (_) => DiceRollerDialog(label: "Danni $w", startWithDamage: true, preselectedDie: damageDie)),
-              ),
-              onTap: () => showDialog(context: context, builder: (_) => DiceRollerDialog(label: "Attacco con $w")),
-            ),
-          );
-        }),
-
-        const SizedBox(height: 24),
-
-        // --- SEZIONE DRUIDO: FORME BESTIALI ---
-        if (char.classId == 'druido') ...[
-          const Text("FORME BESTIALI", style: TextStyle(color: Color(0xFFD4AF37), fontWeight: FontWeight.bold, letterSpacing: 1.2)),
-          const SizedBox(height: 10),
-          _buildDruidFormsList(classData),
-          const SizedBox(height: 24),
-        ],
-
-        // --- PRIVILEGI ---
-        const Text("PRIVILEGI", style: TextStyle(color: Color(0xFFD4AF37), fontWeight: FontWeight.bold, letterSpacing: 1.2)),
-        const SizedBox(height: 10),
-        ...features.map((feat) => _buildFeatureBox(feat['name'], feat['text'])),
-        if (subFeatures.isNotEmpty) ...[
-          const SizedBox(height: 12),
-          Text("FONDAMENTA: ${subclassData['name'] ?? ''}".toUpperCase(), style: const TextStyle(color: Colors.grey, fontSize: 10)),
-          const SizedBox(height: 4),
-          ...subFeatures.map((feat) => _buildFeatureBox(feat['name'], feat['text'])),
-        ]
-      ],
-    );
-  }
-
-  // WIDGET FORME DRUIDO
-  Widget _buildDruidFormsList(Map<String, dynamic>? classData) {
-    final forms = classData?['beast_forms'] as List? ?? [];
-    if (forms.isEmpty) return const Text("Nessuna forma bestiale disponibile.", style: TextStyle(color: Colors.grey));
-
-    return Column(
-      children: forms.map((form) {
-        return ExpansionTile(
-          title: Text(form['name'], style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-          subtitle: Text("Esempi: ${form['examples']}", style: const TextStyle(color: Colors.grey, fontSize: 12)),
-          collapsedBackgroundColor: Colors.white10,
-          backgroundColor: Colors.black26,
-          textColor: const Color(0xFFD4AF37),
-          iconColor: const Color(0xFFD4AF37),
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text("STATS: ${form['stats']}", style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.greenAccent)),
-                  const SizedBox(height: 8),
-                  Wrap(spacing: 8, children: (form['traits'] as List).map((t) => Chip(label: Text(t, style: const TextStyle(fontSize: 10)), visualDensity: VisualDensity.compact)).toList()),
-                  const SizedBox(height: 8),
-                  ...(form['features'] as List).map((f) => Padding(
-                    padding: const EdgeInsets.only(bottom: 4),
-                    child: Text("• ${f['name']}: ${f['text']}", style: const TextStyle(color: Colors.white70, fontSize: 12)),
-                  )),
-                ],
-              ),
-            )
-          ],
+      // Sottoclasse
+      if (character.subclassId != null && classData['subclasses'] != null) {
+        final subclasses = classData['subclasses'] as List;
+        final sub = subclasses.firstWhere(
+          (s) => s['id'] == character.subclassId || s['name'] == character.subclassId, 
+          orElse: () => null
         );
-      }).toList(),
-    );
-  }
+        if (sub != null) {
+          allAbilities.add({
+            'title': sub['name'],
+            'desc': sub['description'] ?? sub['text'] ?? 'Abilità della Sottoclasse',
+            'source': 'SOTTOCLASSE',
+            'color': Colors.purpleAccent
+          });
+           // Feature extra sottoclasse
+          if (sub['features'] != null && sub['features'] is List) {
+            for (var f in sub['features']) {
+              allAbilities.add({
+                'title': f['name'],
+                'desc': f['description'] ?? f['text'] ?? '',
+                'source': 'SOTTOCLASSE',
+                'color': Colors.purpleAccent
+              });
+            }
+          }
+        }
+      }
+    }
 
-  // WIDGET COMPAGNO RANGER
-  Widget _buildCompanionButton(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(colors: [Color(0xFF2E7D32), Color(0xFF1B5E20)]),
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [BoxShadow(color: Colors.green.withOpacity(0.3), blurRadius: 8)],
-      ),
-      child: ListTile(
-        leading: const Icon(Icons.pets, color: Colors.white, size: 28),
-        title: Text(widget.char.companion?['name'] ?? "COMPAGNO", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-        subtitle: Text(widget.char.companion?['type'] ?? "Animale", style: const TextStyle(color: Colors.white70)),
-        trailing: const Icon(Icons.edit, color: Colors.white54),
-        onTap: () => _showCompanionSheet(context),
-      ),
-    );
-  }
+    // B. RAZZA (ANCESTRY)
+    final ancestryData = dm.getAncestryById(character.ancestryId);
+    if (ancestryData != null) {
+       // A volte è una lista 'features', a volte l'oggetto stesso ha 'description'
+       if (ancestryData['features'] != null && ancestryData['features'] is List) {
+         for (var f in ancestryData['features']) {
+            allAbilities.add({
+              'title': f['name'] ?? ancestryData['name'],
+              'desc': f['description'] ?? f['text'] ?? '',
+              'source': 'RAZZA',
+              'color': Colors.greenAccent
+            });
+         }
+       } else if (ancestryData['description'] != null || ancestryData['text'] != null) {
+          // Fallback se la razza ha una descrizione diretta
+           allAbilities.add({
+              'title': ancestryData['name'] ?? 'Tratto Razziale',
+              'desc': ancestryData['description'] ?? ancestryData['text'] ?? '',
+              'source': 'RAZZA',
+              'color': Colors.greenAccent
+            });
+       }
+    }
 
-  void _showCompanionSheet(BuildContext context) {
-    // Usiamo un StatefulBuilder per aggiornare il dialog mentre si edita
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: const Color(0xFF1A1A1A),
-      builder: (c) => StatefulBuilder(
-        builder: (context, setSheetState) {
-          final comp = widget.char.companion ?? {};
-          final currentStress = comp['currentStress'] ?? 0;
-          final maxStress = comp['maxStress'] ?? 5;
+    // C. COMUNITÀ
+    final communityData = dm.getCommunityById(character.communityId);
+    if (communityData != null) {
+       if (communityData['features'] != null && communityData['features'] is List) {
+         for (var f in communityData['features']) {
+            allAbilities.add({
+              'title': f['name'] ?? communityData['name'],
+              'desc': f['description'] ?? f['text'] ?? '',
+              'source': 'COMUNITÀ',
+              'color': Colors.lightBlueAccent
+            });
+         }
+       } else if (communityData['description'] != null || communityData['text'] != null) {
+           allAbilities.add({
+              'title': communityData['name'] ?? 'Tratto Comunità',
+              'desc': communityData['description'] ?? communityData['text'] ?? '',
+              'source': 'COMUNITÀ',
+              'color': Colors.lightBlueAccent
+            });
+       }
+    }
 
-          return DraggableScrollableSheet(
-            initialChildSize: 0.8,
-            builder: (c, s) => ListView(
-              controller: s,
-              padding: const EdgeInsets.all(20),
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          
+          // --- SEZIONE 1: TIRO RAPIDO ---
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: const Color(0xFF2A2438),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: dhGold.withOpacity(0.4)),
+              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.4), blurRadius: 8, offset: const Offset(0, 4))]
+            ),
+            child: Column(
               children: [
-                const Text("SCHEDA COMPAGNO", style: TextStyle(color: Colors.greenAccent, fontSize: 20, fontFamily: 'Cinzel'), textAlign: TextAlign.center),
-                const SizedBox(height: 20),
-                
-                // Modifica Nome e Tipo
-                Row(children: [
-                  Expanded(child: _buildEditField("Nome", comp['name'], (val) => setSheetState(() => comp['name'] = val))),
-                  const SizedBox(width: 10),
-                  Expanded(child: _buildEditField("Tipo", comp['type'], (val) => setSheetState(() => comp['type'] = val))),
-                ]),
-                const SizedBox(height: 20),
-
-                // Stress Tracker
-                const Text("STRESS", style: TextStyle(color: Colors.white70)),
-                const SizedBox(height: 5),
                 Row(
-                  children: List.generate(maxStress, (index) {
-                    return IconButton(
-                      icon: Icon(
-                        index < currentStress ? Icons.circle : Icons.circle_outlined,
-                        color: Colors.deepPurpleAccent,
-                      ),
-                      onPressed: () {
-                        setSheetState(() {
-                          if (index < currentStress) {
-                            comp['currentStress'] = index; // Riduci
-                          } else {
-                            comp['currentStress'] = index + 1; // Aumenta
-                          }
-                          // IMPORTANTE: Salvare lo stato nel main char? 
-                          // Qui stiamo modificando la mappa per riferimento, quindi widget.char.companion è aggiornato.
-                          // Ma non è persistito su disco finché non si salva l'app o si esce.
-                        });
-                      },
-                    );
-                  }),
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.casino, color: dhGold),
+                    const SizedBox(width: 8),
+                    Text("TIRO RAPIDO", style: GoogleFonts.cinzel(color: dhGold, fontWeight: FontWeight.bold, fontSize: 16)),
+                  ],
                 ),
-
-                const Divider(color: Colors.grey),
-                const Text("AZIONI", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 10),
-                ElevatedButton.icon(
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent, foregroundColor: Colors.white),
-                  icon: const Icon(Icons.casino),
-                  label: const Text("ATTACCO (d6)"),
-                  onPressed: () {
-                     Navigator.pop(context);
-                     showDialog(context: context, builder: (_) => const DiceRollerDialog(label: "Attacco Compagno", startWithDamage: true, preselectedDie: 6));
-                  },
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: () => _rollDualityDice(context),
+                    icon: const Icon(Icons.bolt, color: Colors.black),
+                    label: const Text("LANCIA DADI DUALITÀ"),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: dhGold,
+                      foregroundColor: Colors.black,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      textStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, fontFamily: 'Cinzel'),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  "Per prove di Caratteristica o tiri generici.",
+                  style: TextStyle(color: Colors.white38, fontSize: 11, fontStyle: FontStyle.italic),
                 ),
               ],
             ),
-          );
-        }
-      ),
-    ).whenComplete(() {
-      // Quando chiudi la scheda, forziamo un refresh della schermata principale se necessario
-      setState(() {}); 
-    });
-  }
+          ),
 
-  Widget _buildFeatureBox(String? title, String? text) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(color: Colors.white10, borderRadius: BorderRadius.circular(8)),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(title?.toUpperCase() ?? "", style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
-          const SizedBox(height: 4),
-          Text(text ?? "", style: const TextStyle(fontSize: 12, color: Colors.white70)),
+          const SizedBox(height: 24),
+
+          // --- SEZIONE 2: ARMI ---
+          Text(
+            "EQUIPAGGIAMENTO ATTIVO",
+            style: GoogleFonts.cinzel(color: Colors.white70, fontWeight: FontWeight.bold, fontSize: 14),
+          ),
+          const SizedBox(height: 8),
+          
+          if (weapons.isEmpty)
+             _buildEmptyState("Nessuna arma equipaggiata")
+          else
+            ListView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: weapons.length,
+              itemBuilder: (context, index) {
+                final weaponName = weapons[index];
+                return Card(
+                  color: const Color(0xFF2C2C2C),
+                  margin: const EdgeInsets.only(bottom: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    side: const BorderSide(color: Colors.white10),
+                  ),
+                  child: ListTile(
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    leading: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.black26,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: dhGold.withOpacity(0.5))
+                      ),
+                      child: Icon(Icons.colorize, color: dhGold),
+                    ),
+                    title: Text(weaponName, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    subtitle: const Text("Tocca ATTACCA per il danno", style: TextStyle(color: Colors.grey, fontSize: 12)),
+                    trailing: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.red.shade900,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        minimumSize: Size.zero, 
+                      ),
+                      onPressed: () => _rollWeapon(context, weaponName, 0, "d8"), 
+                      child: const Text("ATTACCA", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                    ),
+                  ),
+                );
+              },
+            ),
+
+          const SizedBox(height: 24),
+
+          // --- SEZIONE 3: TRATTI E ABILITÀ (TUTTI) ---
+          if (allAbilities.isNotEmpty) ...[
+            Text(
+              "CAPACITÀ & BONUS",
+              style: GoogleFonts.cinzel(color: Colors.white70, fontWeight: FontWeight.bold, fontSize: 14),
+            ),
+            const SizedBox(height: 8),
+            ...allAbilities.map((ability) => _buildAbilityCard(
+              context, 
+              ability['title'], 
+              ability['desc'], 
+              ability['source'],
+              ability['color']
+            )),
+          ],
         ],
       ),
     );
   }
 
-  Widget _buildEditField(String label, String? val, Function(String) onChanged) {
-    return TextFormField(
-      initialValue: val,
-      style: const TextStyle(color: Colors.white),
-      decoration: InputDecoration(labelText: label, filled: true, fillColor: Colors.black26),
-      onChanged: onChanged,
+  Widget _buildEmptyState(String text) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.white10)
+      ),
+      child: Center(child: Text(text, style: const TextStyle(color: Colors.white30))),
+    );
+  }
+
+  Widget _buildAbilityCard(BuildContext context, String title, String description, String source, Color accentColor) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Banda colorata laterale
+            Container(
+              width: 4,
+              decoration: BoxDecoration(
+                color: accentColor,
+                borderRadius: const BorderRadius.only(topLeft: Radius.circular(8), bottomLeft: Radius.circular(8)),
+              ),
+            ),
+            // Contenuto
+            Expanded(
+              child: Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1E1E2C),
+                  borderRadius: const BorderRadius.only(topRight: Radius.circular(8), bottomRight: Radius.circular(8)),
+                  boxShadow: [BoxShadow(color: Colors.black26, blurRadius: 4, offset: const Offset(0, 2))]
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            title.toUpperCase(), 
+                            style: GoogleFonts.cinzel(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: accentColor.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(4),
+                            border: Border.all(color: accentColor.withOpacity(0.5))
+                          ),
+                          child: Text(source, style: TextStyle(color: accentColor, fontSize: 9, fontWeight: FontWeight.bold)),
+                        )
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      description, 
+                      style: const TextStyle(color: Colors.white70, fontSize: 13, height: 1.4)
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

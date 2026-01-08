@@ -83,7 +83,7 @@ class _CharacterSheetScreenState extends State<CharacterSheetScreen> {
                   index: _currentTabIndex,
                   children: [
                     StatusTab(char: char), 
-                    ActionsTab(char: char, classData: classData),
+                    ActionsTab(character: char),
                     const BattleTab(), // <--- QUI LA NUOVA TAB
                     InventoryTab(char: char),
                     CardsTab(char: char),

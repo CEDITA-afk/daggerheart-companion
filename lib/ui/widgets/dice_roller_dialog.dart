@@ -1,18 +1,20 @@
 import 'package:flutter/material.dart';
-import '../../logic/dice_roller.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'dart:math';
+import '../../data/models/character.dart';
 
 class DiceRollerDialog extends StatefulWidget {
-  final int modifier;
-  final String label;
-  final bool startWithDamage; // Se true, apre direttamente la tab dei dadi standard
-  final int? preselectedDie;  // Es. 8 per preselezionare il d8
+  final Character? character;
+  final int initialModifier;
+  final String? weaponName;
+  final String? damageDice; // Es. "d8" o "2d6" (per ora supportiamo dadi singoli)
 
   const DiceRollerDialog({
-    super.key, 
-    this.modifier = 0, 
-    this.label = "Tiro",
-    this.startWithDamage = false,
-    this.preselectedDie,
+    super.key,
+    this.character,
+    this.initialModifier = 0,
+    this.weaponName,
+    this.damageDice,
   });
 
   @override
@@ -22,285 +24,403 @@ class DiceRollerDialog extends StatefulWidget {
 class _DiceRollerDialogState extends State<DiceRollerDialog> with SingleTickerProviderStateMixin {
   late TabController _tabController;
   
-  // Stato Dualità
-  DualityRoll? _dualityResult;
+  // DUALITY STATE
+  int d1 = 1;
+  int d2 = 1;
+  bool isCrit = false;
+  bool isHope = false;
+  bool isFear = false;
   
-  // Stato Dadi Standard
-  List<int> _rollHistory = [];
-  int _standardTotal = 0;
+  // SINGLE DIE STATE
+  int? singleDieResult;
+  int? selectedDieFaces;
+
+  // SHARED STATE
+  int modifier = 0;
+  bool hasRolled = false;
+  String? resultText;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
-    if (widget.startWithDamage) {
-      _tabController.index = 1; // Vai alla tab Dadi
-      if (widget.preselectedDie != null) {
-        _rollStandard(widget.preselectedDie!); // Tira subito se richiesto
-      }
+    modifier = widget.initialModifier;
+    
+    // Se c'è un dado danno specificato (es. attacco arma), prova a parsarlo
+    if (widget.damageDice != null) {
+      // Logica semplificata: se contiene "d8", vai al tab singoli
+       if (widget.weaponName != null) {
+          // Se è un'arma, spesso si tira prima dualità (TXC) poi danno. 
+          // Lasciamo default Dualità, ma l'utente può cambiare.
+       }
     }
+    
+    // Reset stato al cambio tab
+    _tabController.addListener(() {
+      if (_tabController.indexIsChanging) {
+        setState(() {
+          hasRolled = false;
+          resultText = null;
+          singleDieResult = null;
+          // Non resettiamo il modificatore, potrebbe servire
+        });
+      }
+    });
   }
 
+  // --- LOGICA TIRO DUALITÀ ---
   void _rollDuality() {
     setState(() {
-      _dualityResult = DiceRoller.rollDuality(widget.modifier);
+      d1 = Random().nextInt(12) + 1;
+      d2 = Random().nextInt(12) + 1;
+      hasRolled = true;
+
+      int total = d1 + d2 + modifier;
+      
+      if (d1 == d2) {
+        isCrit = true;
+        isHope = true; 
+        isFear = false;
+        resultText = "CRITICO! ($total)";
+      } else if (d1 > d2) {
+        isHope = true;
+        isFear = false;
+        isCrit = false;
+        resultText = "Successo con Speranza ($total)";
+      } else {
+        isFear = true;
+        isHope = false;
+        isCrit = false;
+        resultText = "Successo con Paura ($total)";
+      }
     });
   }
 
-  void _rollStandard(int sides) {
-    int result = DiceRoller.rollGeneric(sides, 1);
+  // --- LOGICA TIRO SINGOLO ---
+  void _rollSingle(int faces) {
     setState(() {
-      _rollHistory.add(result);
-      _standardTotal += result;
-    });
-  }
-
-  void _clearStandard() {
-    setState(() {
-      _rollHistory.clear();
-      _standardTotal = 0;
+      selectedDieFaces = faces;
+      singleDieResult = Random().nextInt(faces) + 1;
+      hasRolled = true;
+      int total = singleDieResult! + modifier;
+      resultText = "Totale: $total";
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    // Calcoliamo un'altezza fissa (70% dello schermo) per evitare conflitti di layout
-    final double dialogHeight = MediaQuery.of(context).size.height * 0.7;
+    const dhGold = Color(0xFFCFB876);
+    const dhSurface = Color(0xFF2A2438);
 
     return Dialog(
-      backgroundColor: const Color(0xFF1E1E1E),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      // Usiamo SizedBox per forzare le dimensioni ed evitare l'errore "RenderIntrinsicWidth"
-      child: SizedBox(
-        height: dialogHeight,
-        width: double.maxFinite, // Occupa la larghezza standard del Dialog
-        child: Column(
-          children: [
-            // Header
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(16),
-              decoration: const BoxDecoration(
-                color: Colors.black26,
-                borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-              ),
-              child: Text(
-                widget.label.toUpperCase(),
-                style: const TextStyle(
-                  fontFamily: 'Cinzel', 
-                  color: Color(0xFFD4AF37), 
-                  fontSize: 18, 
-                  fontWeight: FontWeight.bold
-                ),
-                textAlign: TextAlign.center,
-              ),
+      backgroundColor: dhSurface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16), 
+        side: const BorderSide(color: dhGold, width: 2)
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // --- HEADER & TABS ---
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: const BoxDecoration(
+              border: Border(bottom: BorderSide(color: Colors.white10)),
             ),
-            
-            // Tabs Header
-            TabBar(
-              controller: _tabController,
-              indicatorColor: const Color(0xFFD4AF37),
-              labelColor: Colors.white,
-              unselectedLabelColor: Colors.grey,
-              tabs: const [
-                Tab(text: "DUALITÀ"),
-                Tab(text: "DADI & DANNI"),
+            child: Column(
+              children: [
+                Text(
+                  widget.weaponName != null ? "ATTACCO: ${widget.weaponName}" : "DICE ROLLER",
+                  style: GoogleFonts.cinzel(color: dhGold, fontWeight: FontWeight.bold, fontSize: 18),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 16),
+                Container(
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: Colors.black26,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: dhGold.withOpacity(0.5))
+                  ),
+                  child: TabBar(
+                    controller: _tabController,
+                    indicator: BoxDecoration(
+                      color: dhGold,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    labelColor: Colors.black,
+                    unselectedLabelColor: dhGold,
+                    labelStyle: const TextStyle(fontWeight: FontWeight.bold),
+                    tabs: const [
+                      Tab(text: "DUALITÀ"),
+                      Tab(text: "DADO SINGOLO"),
+                    ],
+                  ),
+                ),
               ],
             ),
+          ),
 
-            // Contenuto Tabs
-            // Ora Expanded funziona perché il padre (SizedBox) ha un'altezza definita
-            Expanded(
-              child: TabBarView(
-                controller: _tabController,
+          // --- CONTENUTO (SCROLLABLE) ---
+          Flexible(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: Column(
                 children: [
-                  _buildDualityTab(),
-                  _buildStandardTab(),
+                  // MODIFICATORI (COMUNE)
+                  if (!hasRolled) ...[
+                     _buildModifiersSection(),
+                     const Divider(color: Colors.white24, height: 30),
+                  ],
+
+                  // BODY DEL TAB CORRENTE
+                  SizedBox(
+                    height: 220, // Altezza fissa per l'area dadi
+                    child: TabBarView(
+                      controller: _tabController,
+                      physics: const NeverScrollableScrollPhysics(), // Evita scroll orizzontale
+                      children: [
+                        _buildDualityTab(),
+                        _buildSingleTab(dhGold),
+                      ],
+                    ),
+                  ),
                 ],
               ),
             ),
-            
-            // Footer con pulsante Chiudi
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              decoration: const BoxDecoration(
-                border: Border(top: BorderSide(color: Colors.white10)),
-              ),
-              child: TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text("CHIUDI", style: TextStyle(color: Colors.white)),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // --- TAB 1: DUALITÀ ---
-  Widget _buildDualityTab() {
-    return Center(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            if (_dualityResult != null) ...[
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  _buildDieDisplay(_dualityResult!.hopeDie, const Color(0xFFD4AF37), "Speranza"),
-                  const SizedBox(width: 20),
-                  _buildDieDisplay(_dualityResult!.fearDie, Colors.deepPurpleAccent, "Paura"),
-                ],
-              ),
-              const SizedBox(height: 20),
-              Text("Modificatore: +${widget.modifier}", style: const TextStyle(color: Colors.grey)),
-              const Divider(indent: 40, endIndent: 40, color: Colors.white24),
-              Text("${_dualityResult!.total}", style: const TextStyle(fontSize: 60, fontWeight: FontWeight.bold, color: Colors.white)),
-              Text(
-                _getDualityLabel(_dualityResult!),
-                style: TextStyle(
-                  fontSize: 18, 
-                  fontWeight: FontWeight.bold, 
-                  color: _dualityResult!.isCritical ? Colors.greenAccent : (_dualityResult!.resultType == DualityResult.hope ? const Color(0xFFD4AF37) : Colors.deepPurpleAccent)
+          ),
+          
+          // --- FOOTER AZIONI ---
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text("CHIUDI", style: TextStyle(color: Colors.white54)),
                 ),
-              ),
-            ] else ...[
-              const Icon(Icons.casino, size: 60, color: Colors.white12),
-              const SizedBox(height: 10),
-              const Text("Tira per vedere il destino...", style: TextStyle(color: Colors.grey)),
-            ],
-            const SizedBox(height: 30),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFD4AF37),
-                foregroundColor: Colors.black,
-                minimumSize: const Size(double.infinity, 50),
-              ),
-              onPressed: _rollDuality,
-              child: const Text("TIRA DUALITÀ", style: TextStyle(fontWeight: FontWeight.bold)),
+                if (hasRolled)
+                  const SizedBox(width: 16),
+                if (hasRolled)
+                  ElevatedButton.icon(
+                    onPressed: () {
+                      setState(() {
+                        hasRolled = false;
+                        resultText = null;
+                        singleDieResult = null;
+                      });
+                    },
+                    icon: const Icon(Icons.refresh, size: 18),
+                    label: const Text("NUOVO TIRO"),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.white10,
+                      foregroundColor: dhGold,
+                    ),
+                  ),
+              ],
             ),
-          ],
-        ),
+          )
+        ],
       ),
     );
   }
 
-  // --- TAB 2: DADI STANDARD ---
-  Widget _buildStandardTab() {
+  // --- WIDGETS ---
+
+  Widget _buildModifiersSection() {
     return Column(
       children: [
-        // Area Risultato (Scrollabile)
-        Expanded(
-          child: Container(
-            width: double.infinity,
-            margin: const EdgeInsets.all(16),
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.black38,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.white10),
+        if (widget.character != null)
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: widget.character!.stats.entries.map((entry) {
+                String label = entry.key.substring(0, 3).toUpperCase();
+                return Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4.0),
+                  child: FilterChip(
+                    label: Text("$label ${entry.value >= 0 ? '+' : ''}${entry.value}"),
+                    selected: modifier == entry.value,
+                    onSelected: (bool selected) {
+                      setState(() => modifier = entry.value);
+                    },
+                    backgroundColor: Colors.black45,
+                    checkmarkColor: Colors.black,
+                    selectedColor: const Color(0xFFCFB876),
+                    labelStyle: TextStyle(
+                      color: modifier == entry.value ? Colors.black : Colors.white, 
+                      fontSize: 12
+                    ),
+                  ),
+                );
+              }).toList(),
             ),
-            child: SingleChildScrollView(
+          ),
+        const SizedBox(height: 12),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            IconButton(
+              icon: const Icon(Icons.remove_circle_outline, color: Colors.grey),
+              onPressed: () => setState(() => modifier--),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+              decoration: BoxDecoration(border: Border.all(color: Colors.white24), borderRadius: BorderRadius.circular(4)),
+              child: Text("Mod: ${modifier >= 0 ? '+' : ''}$modifier", style: const TextStyle(fontWeight: FontWeight.bold)),
+            ),
+            IconButton(
+              icon: const Icon(Icons.add_circle_outline, color: Colors.grey),
+              onPressed: () => setState(() => modifier++),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDualityTab() {
+    if (!hasRolled) {
+      return Center(
+        child: ElevatedButton(
+          onPressed: _rollDuality,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: const Color(0xFFCFB876),
+            foregroundColor: Colors.black,
+            padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 20),
+            textStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, fontFamily: 'Cinzel'),
+          ),
+          child: const Text("LANCIA DUALITÀ"),
+        ),
+      );
+    }
+
+    // Risultato Dualità
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          children: [
+            _buildDieVisual(d1, "Speranza", isHope || isCrit ? Colors.blue : Colors.grey),
+            const Text("+", style: TextStyle(color: Colors.white24, fontSize: 24)),
+            _buildDieVisual(d2, "Paura", isFear ? Colors.red : Colors.grey),
+          ],
+        ),
+        const SizedBox(height: 16),
+        Container(
+          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+          decoration: BoxDecoration(
+            color: isCrit ? Colors.purple.withOpacity(0.2) : (isHope ? Colors.blue.withOpacity(0.2) : Colors.red.withOpacity(0.2)),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: isCrit ? Colors.purpleAccent : (isHope ? Colors.blueAccent : Colors.redAccent))
+          ),
+          child: Column(
+            children: [
+              Text(
+                "${d1 + d2 + modifier}",
+                style: const TextStyle(fontSize: 36, fontWeight: FontWeight.bold, color: Colors.white),
+              ),
+              Text(
+                resultText ?? "",
+                style: TextStyle(
+                  color: isCrit ? Colors.purpleAccent : (isHope ? Colors.blueAccent : Colors.redAccent),
+                  fontWeight: FontWeight.bold
+                ),
+              ),
+            ],
+          ),
+        )
+      ],
+    );
+  }
+
+  Widget _buildSingleTab(Color accentColor) {
+    // Lista dadi disponibili
+    final dice = [4, 6, 8, 10, 12, 20];
+
+    if (!hasRolled) {
+      return GridView.count(
+        crossAxisCount: 3,
+        crossAxisSpacing: 10,
+        mainAxisSpacing: 10,
+        childAspectRatio: 1.5,
+        children: dice.map((face) {
+          return InkWell(
+            onTap: () => _rollSingle(face),
+            borderRadius: BorderRadius.circular(8),
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.black38,
+                border: Border.all(color: accentColor.withOpacity(0.5)),
+                borderRadius: BorderRadius.circular(8),
+              ),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Text("$_standardTotal", style: const TextStyle(fontSize: 60, fontWeight: FontWeight.bold, color: Colors.white)),
-                  const Text("TOTALE", style: TextStyle(fontSize: 12, color: Colors.grey)),
-                  const SizedBox(height: 10),
-                  if (_rollHistory.isNotEmpty)
-                    Wrap(
-                      alignment: WrapAlignment.center,
-                      spacing: 5,
-                      runSpacing: 5,
-                      children: _rollHistory.map((val) => Chip(
-                        label: Text("$val"),
-                        backgroundColor: Colors.white10,
-                        labelStyle: const TextStyle(color: Colors.white),
-                        padding: EdgeInsets.zero,
-                        visualDensity: VisualDensity.compact,
-                      )).toList(),
-                    ),
+                  Icon(_getDieIcon(face), color: accentColor, size: 24),
+                  Text("d$face", style: TextStyle(color: accentColor, fontWeight: FontWeight.bold)),
                 ],
               ),
             ),
-          ),
-        ),
-        
-        // Pulsanti Dadi
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 8.0),
-          child: Wrap(
-            spacing: 10,
-            runSpacing: 10,
-            alignment: WrapAlignment.center,
-            children: [4, 6, 8, 10, 12, 20].map((sides) => _DiceButton(sides: sides, onPressed: () => _rollStandard(sides))).toList(),
-          ),
-        ),
-        
-        // Pulsante Reset
-        TextButton.icon(
-          onPressed: _clearStandard, 
-          icon: const Icon(Icons.refresh, color: Colors.redAccent), 
-          label: const Text("RESETTA", style: TextStyle(color: Colors.redAccent))
-        ),
-        const SizedBox(height: 8),
-      ],
-    );
-  }
+          );
+        }).toList(),
+      );
+    }
 
-  Widget _buildDieDisplay(int val, Color color, String label) {
-    return Column(
-      children: [
-        Text(label, style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.bold)),
-        Container(
-          width: 50,
-          height: 50,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: color.withOpacity(0.2),
-            border: Border.all(color: color, width: 2),
-            borderRadius: BorderRadius.circular(8),
+    // Risultato Singolo
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          _buildDieVisual(singleDieResult!, "d$selectedDieFaces", accentColor),
+          const SizedBox(height: 20),
+          Text(
+            "Totale: ${singleDieResult! + modifier}",
+            style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: accentColor),
           ),
-          child: Text("$val", style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white)),
-        ),
-      ],
-    );
-  }
-
-  String _getDualityLabel(DualityRoll roll) {
-    if (roll.isCritical) return "CRITICO!";
-    if (roll.resultType == DualityResult.hope) return "CON SPERANZA";
-    return "CON PAURA";
-  }
-}
-
-class _DiceButton extends StatelessWidget {
-  final int sides;
-  final VoidCallback onPressed;
-  const _DiceButton({required this.sides, required this.onPressed});
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onPressed,
-        borderRadius: BorderRadius.circular(8),
-        child: Container(
-          width: 50,
-          height: 50,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            border: Border.all(color: Colors.grey.shade700),
-            borderRadius: BorderRadius.circular(8),
-            color: Colors.white10,
-          ),
-          child: Text("d$sides", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-        ),
+          if (modifier != 0)
+            Text("(Tiro: $singleDieResult ${modifier >= 0 ? '+' : ''} $modifier)", style: const TextStyle(color: Colors.grey)),
+        ],
       ),
     );
+  }
+
+  Widget _buildDieVisual(int value, String label, Color color) {
+    return Column(
+      children: [
+        Container(
+          width: 64, height: 64,
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.2),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: color, width: 2),
+            boxShadow: [BoxShadow(color: color.withOpacity(0.3), blurRadius: 10)]
+          ),
+          child: Center(
+            child: Text(
+              "$value",
+              style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.white),
+            ),
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(label, style: TextStyle(fontSize: 12, color: color.withOpacity(0.8))),
+      ],
+    );
+  }
+
+  IconData _getDieIcon(int faces) {
+    // Usiamo icone approssimative dato che Material non ha tutti i poliedri
+    switch (faces) {
+      case 4: return Icons.change_history; // Triangolo
+      case 6: return Icons.crop_square;    // Quadrato
+      case 8: return Icons.diamond;        // Rombo (simile ottaedro)
+      case 10: return Icons.play_arrow;    // Aquilone (approx)
+      case 12: return Icons.pentagon;      // Pentagono (dodecaedro facce)
+      case 20: return Icons.hexagon;       // Esagono (icosaedro profilo)
+      default: return Icons.casino;
+    }
   }
 }
