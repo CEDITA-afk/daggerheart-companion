@@ -1,42 +1,33 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart'; // Per kIsWeb
-import 'package:provider/provider.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:provider/provider.dart';
+import 'package:google_fonts/google_fonts.dart';
+// IMPORTA IL FILE APPENA CREATO
+import 'firebase_options.dart'; 
 
-// --- PROVIDERS ---
+// ... import dei provider ...
 import 'logic/creation_provider.dart';
 import 'logic/combat_provider.dart';
 import 'logic/room_provider.dart';
 import 'logic/gm_provider.dart';
-
-// --- DATA ---
 import 'data/data_manager.dart';
-
-// --- SCREENS ---
-import 'ui/screens/welcome_screen.dart'; // <--- NUOVA HOMEPAGE
+import 'ui/screens/welcome_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
-  // --- INIZIALIZZA FIREBASE ---
-  // Usa le variabili d'ambiente per la sicurezza su GitHub Pages
-  if (kIsWeb) {
+  await DataManager().loadAllData();
+
+  try {
+    // Inizializza usando il file firebase_options.dart
     await Firebase.initializeApp(
-      options: const FirebaseOptions(
-        apiKey: String.fromEnvironment('FIREBASE_API_KEY'),
-        appId: String.fromEnvironment('FIREBASE_APP_ID'),
-        messagingSenderId: String.fromEnvironment('FIREBASE_MESSAGING_SENDER_ID'),
-        projectId: String.fromEnvironment('FIREBASE_PROJECT_ID'),
-      ),
+      options: DefaultFirebaseOptions.currentPlatform,
     );
-  } else {
-    // Per Android/iOS usa il file google-services.json
-    await Firebase.initializeApp();
+    print("Firebase connesso!");
+  } catch (e) {
+    print("ERRORE FIREBASE: $e");
   }
 
-  // Carica i dati JSON statici (Razze, Classi, ecc.)
-  await DataManager().loadAllData();
-  
   runApp(const MyApp());
 }
 
