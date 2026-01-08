@@ -21,7 +21,7 @@ jobs:
       # QUESTO PASSAGGIO È FONDAMENTALE: --base-href
       # Sostituisci 'daggerheart-companion' con il nome ESATTO della tua repository se diverso
       - name: Build Web
-        run: flutter build web --release --base-href "/daggerheart-companion/" --web-renderer html
+        run: flutter build web --release --base-href "/daggerheart-companion/"
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3
