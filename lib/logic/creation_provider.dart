@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart'; // <--- Necessario per Firestore
+import 'package:cloud_firestore/cloud_firestore.dart'; 
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:collection/collection.dart';
 import 'dart:convert';
@@ -136,14 +136,61 @@ class CreationProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  // --- VALIDAZIONE ---
+
+// --- VALIDAZIONE AGGIORNATA ---
   bool validateCurrentStep() {
     validationError = null;
-    if (currentStep == 0 && tempClass == null) { validationError = "Seleziona una classe."; return false; }
-    if (currentStep == 1 && tempAncestry == null) { validationError = "Seleziona un retaggio."; return false; }
-    if (currentStep == 2 && tempCommunity == null) { validationError = "Seleziona una comunità."; return false; }
-    if (currentStep == 3 && tempSubclass == null) { validationError = "Seleziona una sottoclasse."; return false; }
+    
+    // Step 0: Classe
+    if (currentStep == 0 && tempClass == null) { 
+        validationError = "Seleziona una classe."; return false; 
+    }
+    // Step 1: Retaggio
+    if (currentStep == 1 && tempAncestry == null) { 
+        validationError = "Seleziona un retaggio."; return false; 
+    }
+    // Step 2: Comunità
+    if (currentStep == 2 && tempCommunity == null) { 
+        validationError = "Seleziona una comunità."; return false; 
+    }
+    // Step 3: Sottoclasse
+    if (currentStep == 3 && tempSubclass == null) { 
+        validationError = "Seleziona una sottoclasse."; return false; 
+    }
+    // Step 4: Tratti
     if (currentStep == 4) return _validateTraitsLogic();
+    
+    // Step 5: Statistiche Derivate (Solo informativo)
+    
+    // Step 6: Background (Nome Obbligatorio)
+    if (currentStep == 6) {
+        if (nameController.text.trim().isEmpty) {
+            validationError = "Inserisci almeno il Nome del personaggio.";
+            return false;
+        }
+    }
+
+    // Step 7: Esperienze (Entrambe Obbligatorie)
+    if (currentStep == 7) {
+        if (experienceControllers[0].text.trim().isEmpty || 
+            experienceControllers[1].text.trim().isEmpty) {
+            validationError = "Devi definire entrambe le Esperienze.";
+            return false;
+        }
+    }
+
+    // Step 8: Equipaggiamento (Ha default, sempre valido)
+
+    // Step 9: Carte (Esattamente 2 se disponibili)
+    if (currentStep == 9) {
+        if (availableCards.isNotEmpty && activeCardIds.length != 2) {
+            validationError = "Devi selezionare esattamente 2 Carte Dominio.";
+            return false;
+        }
+    }
+
+    // Step 10: Legami (Opzionale)
+
     return true; 
   }
 

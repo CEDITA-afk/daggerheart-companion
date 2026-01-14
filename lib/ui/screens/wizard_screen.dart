@@ -4,8 +4,8 @@ import '../../logic/creation_provider.dart';
 
 // Import Widgets per gli Step
 import '../widgets/step_class_selection.dart';
-import '../widgets/step_ancestry.dart'; // <--- NUOVO FILE
-import '../widgets/step_community.dart'; // <--- NUOVO FILE
+import '../widgets/step_ancestry.dart';
+import '../widgets/step_community.dart';
 import '../widgets/step_subclass.dart';
 import '../widgets/step_traits_allocation.dart';
 import '../widgets/step_derived_stats.dart';
@@ -28,8 +28,8 @@ class _WizardScreenState extends State<WizardScreen> {
   // Lista ordinata degli step di creazione
   final List<Widget> _steps = [
     const StepClassSelection(),     // 0. Classe
-    const StepAncestry(),           // 1. Retaggio (Separato)
-    const StepCommunity(),          // 2. Comunità (Separato)
+    const StepAncestry(),           // 1. Retaggio
+    const StepCommunity(),          // 2. Comunità
     const StepSubclass(),           // 3. Sottoclasse
     const StepTraitsAllocation(),   // 4. Tratti
     const StepDerivedStats(),       // 5. Statistiche Derivate
@@ -93,11 +93,28 @@ class _WizardScreenState extends State<WizardScreen> {
                         foregroundColor: Colors.black,
                       ),
                       onPressed: () async {
-                        if (_currentStep < _steps.length - 1) {
-                          setState(() => _currentStep++);
+                        // Sincronizza lo step corrente nel provider per eseguire la validazione corretta
+                        provider.currentStep = _currentStep;
+                        
+                        // Esegue la validazione
+                        if (provider.validateCurrentStep()) {
+                          // Se tutto OK, procedi
+                          if (_currentStep < _steps.length - 1) {
+                            setState(() => _currentStep++);
+                          } else {
+                            // Ultimo step: Salva
+                            await provider.saveCharacter();
+                            if (context.mounted) Navigator.pop(context);
+                          }
                         } else {
-                          await provider.saveCharacter();
-                          if (context.mounted) Navigator.pop(context);
+                          // Se c'è un errore, mostra SnackBar
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(provider.validationError ?? "Completa i campi obbligatori."),
+                              backgroundColor: Colors.red,
+                              duration: const Duration(seconds: 2),
+                            )
+                          );
                         }
                       },
                       child: Text(

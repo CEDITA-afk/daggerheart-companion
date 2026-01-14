@@ -1,4 +1,4 @@
-import '../data_manager.dart'; // Necessario per cercare stats classe/armatura
+import '../data_manager.dart';
 
 class Character {
   final String id;
@@ -36,33 +36,27 @@ class Character {
   Map<String, String>? get bonds => narrativeAnswers;
   Map<String, String>? get backgroundAnswers => narrativeAnswers;
 
-  // --- NUOVI GETTER CALCOLATI (Fix Errori) ---
+  // --- GETTER CALCOLATI ---
   
-  // 1. Calcolo Evasione: Base Classe + Agilità + Modificatori
+  // 1. Evasione: Base Classe + Agilità + Modificatori
   int get evasion {
     int base = 10;
-    // Cerca la classe nel DataManager
     final classData = DataManager().getClassById(classId);
     if (classData != null && classData['core_stats'] != null) {
       base = classData['core_stats']['base_evasion'] ?? 10;
     }
-    // Agilità
     int agility = stats['agilita'] ?? 0;
-    
     return base + agility + evasionModifier;
   }
 
-  // 2. Calcolo Soglie Danno (Parsing dell'Armatura)
-  // Se l'armatura ha "Soglie 5/11", major=5, severe=11
+  // 2. Soglie Danno
   List<int> get _damageThresholds {
-    if (armorName.isEmpty) return [1, 2]; // Default senza armatura (molto basso)
+    if (armorName.isEmpty) return [1, 2]; // Valori base minimi
     
-    // Cerca item stats
     final itemData = DataManager().getItemStats(armorName);
-    // Cerca stringa tipo "Soglie 7/15" o nel campo stats
     String statsText = itemData['stats'] ?? "";
     
-    // Regex per trovare "X/Y"
+    // Cerca pattern "5/10" nel testo
     final regex = RegExp(r'(\d+)\/(\d+)');
     final match = regex.firstMatch(statsText);
     
@@ -71,16 +65,28 @@ class Character {
       int severe = int.parse(match.group(2)!);
       return [major, severe];
     }
-    
-    // Fallback generico basato su Armor Score se non troviamo il testo
-    // Daggerheart approssimativo: Major ~ Score*2, Severe ~ Score*4? 
-    // Meglio un default sicuro.
+    // Fallback se non trova il testo esplicito
     return [armorScore + 2, (armorScore * 2) + 4]; 
   }
 
   int get majorThreshold => _damageThresholds[0];
   int get severeThreshold => _damageThresholds[1];
 
+  // 3. Slot Armatura (IL FIX PER L'ERRORE DI COMPILAZIONE)
+  int get maxArmorSlots {
+    if (armorName.isEmpty) return 0; 
+    
+    // Recupera dati dal DataManager
+    final itemData = DataManager().getItemStats(armorName);
+    
+    // Se il JSON ha una chiave 'slots', usala
+    if (itemData.containsKey('slots')) {
+      return int.tryParse(itemData['slots'].toString()) ?? 3;
+    }
+    
+    // Default Daggerheart per la maggior parte delle armature
+    return 3; 
+  }
 
   Character({
     required this.id,

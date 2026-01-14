@@ -35,19 +35,19 @@ dependencies:
   # Per generare ID unici per i personaggi
   uuid: ^4.0.0
   # Per font belli (Daggerheart ha uno stile fantasy moderno)
-  google_fonts: ^6.2.1
+  google_fonts: ^7.0.2
   # Per salvare i dati in locale sul telefono
   shared_preferences: ^2.2.2
   # Per gestire i file JSON
   json_annotation: ^4.8.0
   pdf: ^3.10.0       # Per creare il documento PDF
   printing: ^5.11.0   # Per gestire salvataggio e stampa cross-platform
-  share_plus: ^10.0.0
-  file_picker: ^8.0.0
+  share_plus: ^12.0.1
+  file_picker: ^10.3.8
   path_provider: ^2.1.2
   universal_html: ^2.2.4
-  firebase_core: ^3.0.0
-  cloud_firestore: ^5.0.0
+  firebase_core: ^4.3.0
+  cloud_firestore: ^6.1.1
 
 dev_dependencies:
   flutter_test:
