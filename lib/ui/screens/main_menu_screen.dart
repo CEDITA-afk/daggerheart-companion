@@ -11,7 +11,6 @@ class MainMenuScreen extends StatelessWidget {
 
   void _showIdentityDialog(BuildContext context) {
     final provider = context.read<RoomProvider>();
-    // Assicura che l'ID sia caricato
     if (provider.userId == null) provider.init();
     
     final TextEditingController recoverController = TextEditingController();
@@ -20,7 +19,7 @@ class MainMenuScreen extends StatelessWidget {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF1E1E24), // Sfondo leggermente più scuro
+        backgroundColor: const Color(0xFF1E1E24),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
           side: BorderSide(color: dhGold.withOpacity(0.5), width: 1)
@@ -42,7 +41,7 @@ class MainMenuScreen extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               
-              // --- BOX VISUALIZZAZIONE ID (COPY) ---
+              // --- BOX VISUALIZZAZIONE ID ---
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                 decoration: BoxDecoration(
@@ -115,7 +114,6 @@ class MainMenuScreen extends StatelessWidget {
                     borderRadius: BorderRadius.circular(8),
                     borderSide: BorderSide(color: dhGold)
                   ),
-                  // TASTO INCOLLA DEDICATO
                   suffixIcon: IconButton(
                     icon: const Icon(Icons.paste, color: Colors.white70),
                     tooltip: "Incolla dagli appunti",
@@ -157,7 +155,6 @@ class MainMenuScreen extends StatelessWidget {
                   onPressed: () async {
                     String inputId = recoverController.text.trim();
                     if (inputId.isNotEmpty) {
-                      // Esegui il recupero
                       await provider.forceUserId(inputId);
                       if (ctx.mounted) {
                         Navigator.pop(ctx);
@@ -185,100 +182,121 @@ class MainMenuScreen extends StatelessWidget {
     final dhGold = Theme.of(context).primaryColor;
 
     return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(
-          image: DecorationImage(
-            image: AssetImage("assets/images/background_main.jpg"), 
+      backgroundColor: Colors.black, // Fallback se l'immagine non carica
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          // Sfondo con gestione errore caricamento
+          Image.asset(
+            "assets/images/background_main.jpg",
             fit: BoxFit.cover,
-            colorFilter: ColorFilter.mode(Colors.black54, BlendMode.darken)
+            color: Colors.black54,
+            colorBlendMode: BlendMode.darken,
+            errorBuilder: (context, error, stackTrace) {
+              return Container(color: const Color(0xFF121212)); // Sfondo scuro di default
+            },
           ),
-        ),
-        child: Center(
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                // LOGO & TITOLO
-                Text(
-                  "DAGGERHEART",
-                  style: GoogleFonts.cinzel(
-                    fontSize: 48,
-                    fontWeight: FontWeight.bold,
-                    color: dhGold,
-                    shadows: [const Shadow(blurRadius: 10, color: Colors.black, offset: Offset(2, 2))]
+          
+          Center(
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  // LOGO & TITOLO
+                  Text(
+                    "DAGGERHEART",
+                    style: GoogleFonts.cinzel(
+                      fontSize: 48,
+                      fontWeight: FontWeight.bold,
+                      color: dhGold,
+                      shadows: [const Shadow(blurRadius: 10, color: Colors.black, offset: Offset(2, 2))]
+                    ),
+                    textAlign: TextAlign.center,
                   ),
-                ),
-                Text(
-                  "COMPANION",
-                  style: GoogleFonts.cinzel(
-                    fontSize: 24,
-                    color: Colors.white70,
-                    letterSpacing: 4
+                  Text(
+                    "COMPANION",
+                    style: GoogleFonts.cinzel(
+                      fontSize: 24,
+                      color: Colors.white70,
+                      letterSpacing: 4
+                    ),
+                    textAlign: TextAlign.center,
                   ),
-                ),
-                
-                const SizedBox(height: 60),
+                  
+                  const SizedBox(height: 60),
 
-                // PULSANTE 1: GIOCATORE
-                _buildMenuButton(context, "GIOCATORE", Icons.person, () {
-                  Navigator.push(context, MaterialPageRoute(builder: (_) => const CharacterListScreen()));
-                }),
-                
-                const SizedBox(height: 20),
-                
-                // PULSANTE 2: GAME MASTER
-                _buildMenuButton(context, "GAME MASTER", Icons.security, () {
-                  Navigator.push(context, MaterialPageRoute(builder: (_) => const GMRoomListScreen()));
-                }),
+                  // PULSANTE 1: GIOCATORE
+                  _buildMenuButton(context, "GIOCATORE", Icons.person, () {
+                    Navigator.push(context, MaterialPageRoute(builder: (_) => const CharacterListScreen()));
+                  }),
+                  
+                  const SizedBox(height: 20),
+                  
+                  // PULSANTE 2: GAME MASTER
+                  _buildMenuButton(context, "GAME MASTER", Icons.security, () {
+                    Navigator.push(context, MaterialPageRoute(builder: (_) => const GMRoomListScreen()));
+                  }),
 
-                const SizedBox(height: 60),
-                
-                // PULSANTE GESTIONE ID (Stile Link)
-                TextButton.icon(
-                  onPressed: () => _showIdentityDialog(context),
-                  icon: const Icon(Icons.vpn_key, size: 16, color: Colors.white54),
-                  label: const Text("Gestione ID & Recupero", style: TextStyle(color: Colors.white54)),
-                  style: TextButton.styleFrom(
-                    backgroundColor: Colors.black.withOpacity(0.3),
-                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(30), 
-                      side: BorderSide(color: Colors.white.withOpacity(0.1))
-                    )
+                  const SizedBox(height: 60),
+                  
+                  // PULSANTE GESTIONE ID (Stile Link)
+                  TextButton.icon(
+                    onPressed: () => _showIdentityDialog(context),
+                    icon: const Icon(Icons.vpn_key, size: 16, color: Colors.white54),
+                    label: const Text("Gestione ID & Recupero", style: TextStyle(color: Colors.white54)),
+                    style: TextButton.styleFrom(
+                      backgroundColor: Colors.black45,
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(30), 
+                        side: BorderSide(color: Colors.white.withOpacity(0.1))
+                      )
+                    ),
                   ),
-                ),
-                
-                const SizedBox(height: 20),
-                Text("v1.0.0", style: TextStyle(color: Colors.white.withOpacity(0.2), fontSize: 10)),
-              ],
+                  
+                  const SizedBox(height: 20),
+                  Text("v1.0.0", style: TextStyle(color: Colors.white.withOpacity(0.2), fontSize: 10)),
+                ],
+              ),
             ),
           ),
-        ),
+        ],
       ),
     );
   }
 
+  // Widget pulsante ottimizzato per evitare overflow
   Widget _buildMenuButton(BuildContext context, String text, IconData icon, VoidCallback onPressed) {
     return SizedBox(
       width: 260,
-      height: 70, // Leggermente più alto per tocco facile
+      height: 65,
       child: ElevatedButton(
         style: ElevatedButton.styleFrom(
           backgroundColor: const Color(0xFF1E1E1E).withOpacity(0.95),
-          side: const BorderSide(color: Color(0xFFD4AF37), width: 1.5), // Bordo leggermente più spesso
+          side: const BorderSide(color: Color(0xFFD4AF37), width: 1.5),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           elevation: 8,
           shadowColor: Colors.black.withOpacity(0.5),
+          padding: const EdgeInsets.symmetric(horizontal: 16), // Padding laterale ridotto
         ),
         onPressed: onPressed,
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min, // Occupa solo lo spazio necessario
           children: [
-            Icon(icon, color: const Color(0xFFD4AF37), size: 30),
-            const SizedBox(width: 16),
-            Text(
-              text, 
-              style: GoogleFonts.cinzel(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white)
+            Icon(icon, color: const Color(0xFFD4AF37), size: 28), // Icona ridotta leggermente
+            const SizedBox(width: 12), // Spazio ridotto
+            Flexible( // Impedisce overflow se il testo è lungo
+              child: Text(
+                text, 
+                style: GoogleFonts.cinzel(
+                  fontSize: 20, // Font ridotto leggermente
+                  fontWeight: FontWeight.bold, 
+                  color: Colors.white
+                ),
+                overflow: TextOverflow.ellipsis,
+                maxLines: 1,
+              ),
             ),
           ],
         ),
