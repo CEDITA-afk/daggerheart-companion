@@ -13,41 +13,42 @@ class RoomProvider extends ChangeNotifier {
   // Getter lazy per Firebase
   FirebaseFirestore get _db => FirebaseFirestore.instance;
   
-  // --- IDENTITÀ UTENTE (UNIFICATA) ---
-  // Questo ID rappresenta la persona fisica, sia essa GM o Giocatore.
-  String? myUserId; 
-
-  // --- STATO SESSIONE CORRENTE ---
+  // --- STATO SESSIONE ---
   String? currentRoomCode;
   bool isGm = false;
+  
+  // Identificativo Utente
+  String? myUserId;       
   String? myCharacterId;  
 
-  // --- DATI STANZA ATTIVA ---
+  // --- COMPATIBILITÀ UI ---
+  String? get userId => myUserId;
+  Future<void> initUser() async => await init();
+
+  // Liste per la gestione stanze (GM)
+  List<Map<String, dynamic>> myRooms = [];
+
+  // Dati della stanza
   int fear = 0;
   int actionTokens = 0;
   List<dynamic> activeCombatantsData = []; 
   
-  // Lista stanze create (se sono GM)
-  List<Map<String, dynamic>> myRooms = [];
-  
-  Stream<QuerySnapshot>? playersStream;
-
-  // Getter di compatibilità per UI
-  String? get userId => myUserId;
+  // LISTA DEI GIOCATORI CONNESSI (Lobby)
+  // Questa lista viene popolata dall'array 'players' nel DB
+  List<Map<String, dynamic>> connectedPlayers = [];
 
   // --- 1. INIZIALIZZAZIONE ---
-  // Chiamato all'avvio dell'app (StartupScreen)
   Future<void> init() async {
     final prefs = await SharedPreferences.getInstance();
     
-    // A. Gestione Identità Unica
+    // A. Identità del Dispositivo
     if (!prefs.containsKey('user_device_id')) {
       String newId = const Uuid().v4();
       await prefs.setString('user_device_id', newId);
     }
     myUserId = prefs.getString('user_device_id');
 
-    // B. Tentativo di Riconnessione Sessione (se l'app è stata chiusa mentre si giocava)
+    // B. Controllo Sessione Interrotta
     final savedRoom = prefs.getString('room_code');
     final savedIsGm = prefs.getBool('is_gm') ?? false;
     final savedCharId = prefs.getString('char_id');
@@ -56,19 +57,16 @@ class RoomProvider extends ChangeNotifier {
       try {
         DocumentSnapshot snap = await _db.collection('rooms').doc(savedRoom).get();
         if (snap.exists) {
-          // Riconnessione riuscita
           currentRoomCode = savedRoom;
           isGm = savedIsGm;
           myCharacterId = savedCharId;
           
           _listenToRoom(savedRoom);
           if (isGm) {
-            _listenToPlayers(savedRoom);
-            // Se stavo facendo il GM, ricarico le mie stanze
             loadMyRooms(); 
           }
+          notifyListeners();
         } else {
-          // Stanza non esiste più
           await exitRoom();
         }
       } catch (e) {
@@ -79,24 +77,17 @@ class RoomProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  // Metodo alias per compatibilità con UI
-  Future<void> initUser() async => await init();
-
-  // --- 2. GESTIONE IDENTITÀ (RECUPERO) ---
-  // Permette di inserire un ID salvato altrove per recuperare l'account
+  // --- METODO RECUPERO ID ---
   Future<void> forceUserId(String newId) async {
-    myUserId = newId;
+    myUserId = newId; 
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('user_device_id', newId);
-    
-    // Dopo aver cambiato ID, ricarico le stanze associate a questo nuovo ID
+    await prefs.setString('user_device_id', newId); 
     await loadMyRooms();
     notifyListeners();
   }
 
-  // --- 3. LOGICA GM (CREAZIONE & GESTIONE) ---
+  // --- 2. GESTIONE STANZE GM ---
 
-  // Carica le stanze dove 'gmId' corrisponde al MIO 'myUserId'
   Future<void> loadMyRooms() async {
     if (myUserId == null) await init(); 
     try {
@@ -117,17 +108,15 @@ class RoomProvider extends ChangeNotifier {
         'code': code,
         'roomName': roomName,
         'gmName': gmName,
-        'gmId': myUserId, // Qui leghiamo la stanza all'Utente
+        'gmId': myUserId,
         'createdAt': FieldValue.serverTimestamp(),
         'fear': 0,
         'actionTokens': 0,
         'combatants': [],
-        'players': [] 
+        'players': [] // Array dove si aggiungeranno i giocatori
       });
 
-      // Entra subito come GM
       await _enterRoomAsGm(code);
-      // Aggiorna la lista
       await loadMyRooms();
       
       return code;
@@ -151,18 +140,15 @@ class RoomProvider extends ChangeNotifier {
     await prefs.remove('char_id');
 
     _listenToRoom(code);
-    _listenToPlayers(code);
     notifyListeners();
   }
 
-  // --- 4. LOGICA GIOCATORE (JOIN) ---
+  // --- 3. GESTIONE GIOCATORE ---
   
   Future<bool> joinRoom(String code, Character character) async {
     if (myUserId == null) await init();
 
     try {
-      // Nota: Potremmo passare myUserId qui per legare il personaggio all'utente
-      // Ma per ora manteniamo la logica semplice del servizio
       bool success = await _service.joinRoom(code, character.id, character.name);
       
       if (!success) return false;
@@ -185,8 +171,7 @@ class RoomProvider extends ChangeNotifier {
     }
   }
 
-  // --- 5. COMBATTIMENTO & SYNC (GM) ---
-  // Questa parte rimane invariata, serve al GM per aggiornare il DB
+  // --- 4. COMBATTIMENTO & SYNC ---
 
   Future<void> syncCombatData(int newFear, int newTokens, List<dynamic> allCombatants) async {
     if (!isGm || currentRoomCode == null) return;
@@ -194,34 +179,47 @@ class RoomProvider extends ChangeNotifier {
     List<Map<String, dynamic>> combatJson = allCombatants.map((e) {
       if (e is Character) {
         return {
-          'id': e.id, 'name': e.name, 'currentHp': e.currentHp, 'maxHp': e.maxHp,
-          'isPlayer': true, ...e.toJson(), 
+          'id': e.id,
+          'name': e.name,
+          'currentHp': e.currentHp,
+          'maxHp': e.maxHp,
+          'isPlayer': true,
+          ...e.toJson(), 
         };
       } else if (e is Adversary) {
         return {
-          'id': e.id, 'name': e.name, 'currentHp': e.currentHp, 'maxHp': e.maxHp,
-          'isPlayer': false, 'tier': e.tier, 'difficulty': e.difficulty,
-          'attack': "${e.attackName} (+${e.attackMod})", 'damage': e.damageDice,
+          'id': e.id,
+          'name': e.name,
+          'currentHp': e.currentHp,
+          'maxHp': e.maxHp,
+          'isPlayer': false, 
+          'tier': e.tier,
+          'difficulty': e.difficulty,
+          'attack': "${e.attackName} (+${e.attackMod})",
+          'damage': e.damageDice,
           'moves': e.features.map((f) => {'name': f.name, 'description': f.text}).toList(),
         };
       } else {
-        return {'id': 'error', 'name': '?', 'isPlayer': false};
+        return {'id': 'error', 'name': 'Dati non validi', 'isPlayer': false};
       }
     }).toList();
 
     await _db.collection('rooms').doc(currentRoomCode).update({
-      'fear': newFear, 'actionTokens': newTokens, 'combatants': combatJson,
+      'fear': newFear,
+      'actionTokens': newTokens,
+      'combatants': combatJson,
     });
   }
 
   Future<void> clearCombat() async {
     if (!isGm || currentRoomCode == null) return;
-    await _db.collection('rooms').doc(currentRoomCode).update({'combatants': []});
+    await _db.collection('rooms').doc(currentRoomCode).update({
+      'combatants': [],
+    });
   }
 
-  // --- 6. USCITA (EXIT) ---
+  // --- 5. LOGOUT / USCITA ---
 
-  // Esce dalla stanza (ma mantiene l'identità utente)
   Future<void> exitRoom() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('room_code');
@@ -231,26 +229,23 @@ class RoomProvider extends ChangeNotifier {
     currentRoomCode = null;
     isGm = false;
     myCharacterId = null;
-    playersStream = null;
     activeCombatantsData = [];
+    connectedPlayers = []; // Reset lista giocatori
     
-    // Se esco, ricarico le mie stanze per aggiornare la dashboard GM se rientro lì
     if (myUserId != null) loadMyRooms();
-    
     notifyListeners();
   }
 
-  // Resetta totalmente l'identità (per debug o cambio totale)
   Future<void> logout() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('user_device_id'); // Cancella l'ID utente
+    await prefs.remove('user_device_id');
     await exitRoom();
     myUserId = null;
     myRooms = [];
     notifyListeners();
   }
 
-  // --- LISTENERS ---
+  // --- 6. LISTENER UNIFICATO ---
   
   void _listenToRoom(String code) {
     _db.collection('rooms').doc(code).snapshots().listen((snapshot) {
@@ -260,17 +255,20 @@ class RoomProvider extends ChangeNotifier {
           fear = data['fear'] ?? 0;
           actionTokens = data['actionTokens'] ?? 0;
           activeCombatantsData = data['combatants'] ?? [];
+          
+          // FIX: Aggiorniamo la lista giocatori leggendo l'array 'players' dal documento
+          if (data['players'] != null) {
+            connectedPlayers = List<Map<String, dynamic>>.from(data['players']);
+          } else {
+            connectedPlayers = [];
+          }
+
           notifyListeners();
         }
       } else {
         exitRoom();
       }
     });
-  }
-
-  void _listenToPlayers(String code) {
-    playersStream = _db.collection('rooms').doc(code).collection('players').snapshots();
-    notifyListeners();
   }
 
   String _generateRoomCode() {
