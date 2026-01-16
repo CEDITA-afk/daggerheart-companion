@@ -10,7 +10,7 @@ class RoomService {
     
     await _db.collection('rooms').doc(code).set({
       'code': code,
-      'name': name,
+      'roomName': name, // Uniformato a roomName
       'gmId': gmId,
       'createdAt': FieldValue.serverTimestamp(),
       'combat_active': false,
@@ -37,25 +37,35 @@ class RoomService {
     }
   }
 
-  // --- FIX: SALVA L'INTERO PERSONAGGIO NELL'ARRAY ---
-  Future<bool> joinRoom(String code, Map<String, dynamic> playerData) async {
+  // --- FIX: SANITIZZAZIONE DATI PERSONAGGIO ---
+  Future<bool> joinRoom(String code, Map<String, dynamic> rawPlayerData) async {
     final docRef = _db.collection('rooms').doc(code);
     final doc = await docRef.get();
     
     if (!doc.exists) return false;
 
-    // Rimuove eventuali versioni vecchie dello stesso personaggio per aggiornare i dati
-    List<dynamic> currentPlayers = doc.data()?['players'] ?? [];
-    currentPlayers.removeWhere((p) => p['id'] == playerData['id']);
+    // Creiamo una copia sicura dei dati
+    final Map<String, dynamic> safeData = Map.from(rawPlayerData);
     
-    // Aggiunge timestamp di join
-    playerData['joinedAt'] = DateTime.now().toIso8601String();
+    // Assicuriamo che i campi lista non siano null
+    safeData['inventory'] = safeData['inventory'] ?? [];
+    safeData['activeCards'] = safeData['activeCards'] ?? [];
+    safeData['weapons'] = safeData['weapons'] ?? [];
+    safeData['armor'] = safeData['armor'] ?? [];
+    
+    // Aggiungiamo timestamp di join
+    safeData['joinedAt'] = DateTime.now().toIso8601String();
 
-    // Aggiunge la nuova versione
-    currentPlayers.add(playerData);
+    // Gestione concorrenza: rimuovi vecchio, aggiungi nuovo
+    await _db.runTransaction((transaction) async {
+      final snapshot = await transaction.get(docRef);
+      if (!snapshot.exists) return;
 
-    await docRef.update({
-      'players': currentPlayers
+      List<dynamic> currentPlayers = List.from(snapshot.data()?['players'] ?? []);
+      currentPlayers.removeWhere((p) => p['id'] == safeData['id']);
+      currentPlayers.add(safeData);
+
+      transaction.update(docRef, {'players': currentPlayers});
     });
     
     return true;
