@@ -149,7 +149,8 @@ class RoomProvider extends ChangeNotifier {
     if (myUserId == null) await init();
 
     try {
-      bool success = await _service.joinRoom(code, character.id, character.name);
+      // FIX: Passiamo l'intero JSON del personaggio
+      bool success = await _service.joinRoom(code, character.toJson());
       
       if (!success) return false;
 
