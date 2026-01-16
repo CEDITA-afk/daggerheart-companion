@@ -71,10 +71,17 @@ class RoomProvider extends ChangeNotifier {
   }
 
   // --- FIX: METODO MANCANTE RICHIESTO DA STARTUP_SCREEN ---
-  Future<void> forceUserId(String newId) async {
+    Future<void> forceUserId(String newId) async {
+    // 1. Aggiorna la memoria locale
+    _userId = newId; 
+    
+    // 2. Salva in modo persistente
     final prefs = await SharedPreferences.getInstance();
-    myUserId = newId;
-    await prefs.setString('user_device_id', newId);
+    await prefs.setString('user_id', newId); // Nota: usa la stessa chiave usata in initUser ('user_id')
+    
+    // 3. Ricarica le stanze associate a questo NUOVO ID
+    await loadMyRooms();
+    
     notifyListeners();
   }
 
