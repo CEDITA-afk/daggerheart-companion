@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart'; // Necessario per la Clipboard
+import 'package:flutter/services.dart'; 
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../logic/room_provider.dart';
@@ -9,11 +9,10 @@ import 'gm_room_list_screen.dart';
 class MainMenuScreen extends StatelessWidget {
   const MainMenuScreen({super.key});
 
-  // --- LOGICA DIALOGO GESTIONE ID ---
-  void _showGmIdentityDialog(BuildContext context) {
+  void _showIdentityDialog(BuildContext context) {
     final provider = context.read<RoomProvider>();
-    // Assicuriamoci che l'ID sia caricato
-    if (provider.userId == null) provider.initUser();
+    // L'ID è già inizializzato da StartupScreen, ma per sicurezza...
+    if (provider.userId == null) provider.init();
     
     final TextEditingController recoverController = TextEditingController();
     final dhGold = Theme.of(context).primaryColor;
@@ -26,22 +25,22 @@ class MainMenuScreen extends StatelessWidget {
           borderRadius: BorderRadius.circular(16),
           side: BorderSide(color: dhGold, width: 2)
         ),
-        title: Text("Identità Game Master", style: GoogleFonts.cinzel(color: Colors.white)),
+        title: Text("Il tuo ID Utente", style: GoogleFonts.cinzel(color: Colors.white)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              "Questo è il tuo ID univoco. Salvalo per recuperare le tue stanze su un altro dispositivo.",
-              style: TextStyle(color: Colors.white70, fontSize: 12),
+              "Questo codice ti identifica univocamente. Usalo per recuperare le tue stanze GM su altri dispositivi.",
+              style: TextStyle(color: Colors.white70, fontSize: 13),
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 15),
             
-            // BOX ID ATTUALE + COPY
+            // VISUALIZZATORE ID
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
               decoration: BoxDecoration(
-                color: Colors.black45,
+                color: Colors.black54,
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(color: Colors.white24)
               ),
@@ -49,8 +48,8 @@ class MainMenuScreen extends StatelessWidget {
                 children: [
                   Expanded(
                     child: SelectableText(
-                      provider.userId ?? "Caricamento...",
-                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontFamily: 'Courier'),
+                      provider.userId ?? "ID non disponibile",
+                      style: const TextStyle(color: Color(0xFFD4AF37), fontWeight: FontWeight.bold, fontFamily: 'Courier', fontSize: 14),
                     ),
                   ),
                   IconButton(
@@ -59,7 +58,7 @@ class MainMenuScreen extends StatelessWidget {
                       if (provider.userId != null) {
                         Clipboard.setData(ClipboardData(text: provider.userId!));
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text("ID copiato negli appunti!"))
+                          const SnackBar(content: Text("ID copiato!"))
                         );
                       }
                     },
@@ -68,29 +67,24 @@ class MainMenuScreen extends StatelessWidget {
               ),
             ),
             
-            const SizedBox(height: 20),
+            const SizedBox(height: 25),
             const Divider(color: Colors.white24),
             const SizedBox(height: 10),
             
             const Text(
               "RECUPERO ACCOUNT",
-              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
             ),
-            const Text(
-              "Hai un vecchio ID? Incollalo qui per ripristinare le tue stanze.",
-              style: TextStyle(color: Colors.white54, fontSize: 12),
-            ),
-            const SizedBox(height: 8),
-            
-            // INPUT RECUPERO
+            const SizedBox(height: 5),
             TextField(
               controller: recoverController,
               style: const TextStyle(color: Colors.white),
               decoration: const InputDecoration(
-                hintText: "Incolla qui il tuo vecchio ID",
+                hintText: "Incolla qui un vecchio ID...",
                 hintStyle: TextStyle(color: Colors.white30),
-                enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.white24)),
-                focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: Color(0xFFD4AF37))),
+                filled: true,
+                fillColor: Colors.black26,
+                border: OutlineInputBorder(),
               ),
             ),
           ],
@@ -110,12 +104,12 @@ class MainMenuScreen extends StatelessWidget {
                 if (ctx.mounted) {
                   Navigator.pop(ctx);
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text("ID aggiornato! Le stanze sono state sincronizzate."))
+                    const SnackBar(content: Text("Account recuperato con successo!"))
                   );
                 }
               }
             },
-            child: const Text("Recupera"),
+            child: const Text("Recupera ID"),
           )
         ],
       ),
@@ -140,7 +134,7 @@ class MainMenuScreen extends StatelessWidget {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                // TITOLO
+                // LOGO
                 Text(
                   "DAGGERHEART",
                   style: GoogleFonts.cinzel(
@@ -161,36 +155,31 @@ class MainMenuScreen extends StatelessWidget {
                 
                 const SizedBox(height: 60),
 
-                // PULSANTI MENU
+                // PULSANTE 1: GIOCATORE
                 _buildMenuButton(context, "GIOCATORE", Icons.person, () {
                   Navigator.push(context, MaterialPageRoute(builder: (_) => const CharacterListScreen()));
                 }),
                 
                 const SizedBox(height: 20),
                 
+                // PULSANTE 2: GAME MASTER
                 _buildMenuButton(context, "GAME MASTER", Icons.security, () {
                   Navigator.push(context, MaterialPageRoute(builder: (_) => const GMRoomListScreen()));
                 }),
 
-                const SizedBox(height: 40),
+                const SizedBox(height: 60),
                 
-                // PULSANTE GESTIONE ID (Nuovo)
+                // PULSANTE ID / RECUPERO
                 TextButton.icon(
-                  onPressed: () => _showGmIdentityDialog(context),
-                  icon: const Icon(Icons.vpn_key, color: Colors.white54, size: 18),
-                  label: const Text("Gestisci ID & Recupero", style: TextStyle(color: Colors.white70)),
+                  onPressed: () => _showIdentityDialog(context),
+                  icon: const Icon(Icons.vpn_key, size: 16, color: Colors.white54),
+                  label: const Text("Gestisci ID & Recupero", style: TextStyle(color: Colors.white54)),
                   style: TextButton.styleFrom(
                     backgroundColor: Colors.black45,
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20))
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30), side: const BorderSide(color: Colors.white10))
                   ),
                 ),
-                
-                // Tasto Reset (Debug - opzionale)
-                // TextButton(
-                //   onPressed: () => context.read<RoomProvider>().logout(),
-                //   child: const Text("Reset Debug", style: TextStyle(color: Colors.white10)),
-                // )
               ],
             ),
           ),
@@ -201,23 +190,24 @@ class MainMenuScreen extends StatelessWidget {
 
   Widget _buildMenuButton(BuildContext context, String text, IconData icon, VoidCallback onPressed) {
     return SizedBox(
-      width: 250,
-      height: 60,
+      width: 260,
+      height: 65,
       child: ElevatedButton(
         style: ElevatedButton.styleFrom(
-          backgroundColor: const Color(0xFF1E1E1E).withOpacity(0.9),
-          side: const BorderSide(color: Color(0xFFD4AF37), width: 1.5),
+          backgroundColor: const Color(0xFF1E1E1E).withOpacity(0.95),
+          side: const BorderSide(color: Color(0xFFD4AF37), width: 1),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          elevation: 10,
         ),
         onPressed: onPressed,
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, color: const Color(0xFFD4AF37)),
-            const SizedBox(width: 12),
+            Icon(icon, color: const Color(0xFFD4AF37), size: 28),
+            const SizedBox(width: 16),
             Text(
               text, 
-              style: GoogleFonts.cinzel(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)
+              style: GoogleFonts.cinzel(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white)
             ),
           ],
         ),
