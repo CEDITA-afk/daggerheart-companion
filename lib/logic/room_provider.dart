@@ -13,11 +13,20 @@ class RoomProvider extends ChangeNotifier {
   // Getter lazy per Firebase
   FirebaseFirestore get _db => FirebaseFirestore.instance;
   
-  // Stato Sessione
+  // --- STATO SESSIONE ---
   String? currentRoomCode;
   bool isGm = false;
+  
+  // Identificativo Utente (Usiamo 'myUserId' come nella versione originale)
   String? myUserId;       
   String? myCharacterId;  
+
+  // --- COMPATIBILITÀ UI (Fix per gli errori) ---
+  // L'interfaccia chiede 'userId', noi glielo diamo collegandolo a 'myUserId'
+  String? get userId => myUserId;
+  
+  // L'interfaccia chiede 'initUser', noi chiamiamo 'init'
+  Future<void> initUser() async => await init();
 
   // Liste per la gestione stanze (GM)
   List<Map<String, dynamic>> myRooms = [];
@@ -33,14 +42,15 @@ class RoomProvider extends ChangeNotifier {
   Future<void> init() async {
     final prefs = await SharedPreferences.getInstance();
     
-    // Identità
+    // A. Identità del Dispositivo
+    // NOTA: Usiamo la chiave 'user_device_id' per mantenere la memoria storica se presente
     if (!prefs.containsKey('user_device_id')) {
       String newId = const Uuid().v4();
       await prefs.setString('user_device_id', newId);
     }
     myUserId = prefs.getString('user_device_id');
 
-    // Ripristino Sessione
+    // B. Controllo Sessione Interrotta
     final savedRoom = prefs.getString('room_code');
     final savedIsGm = prefs.getBool('is_gm') ?? false;
     final savedCharId = prefs.getString('char_id');
@@ -70,16 +80,16 @@ class RoomProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  // --- FIX: METODO MANCANTE RICHIESTO DA STARTUP_SCREEN ---
-    Future<void> forceUserId(String newId) async {
-    // 1. Aggiorna la memoria locale
-    _userId = newId; 
+  // --- METODO RECUPERO ID (Fix Errori Compilazione) ---
+  Future<void> forceUserId(String newId) async {
+    // Aggiorna la variabile locale corretta
+    myUserId = newId; 
     
-    // 2. Salva in modo persistente
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('user_id', newId); // Nota: usa la stessa chiave usata in initUser ('user_id')
+    // Usa la chiave corretta 'user_device_id' coerente con init()
+    await prefs.setString('user_device_id', newId); 
     
-    // 3. Ricarica le stanze associate a questo NUOVO ID
+    // Ricarica le stanze per il nuovo ID
     await loadMyRooms();
     
     notifyListeners();
@@ -97,8 +107,6 @@ class RoomProvider extends ChangeNotifier {
     }
   }
 
-  // --- FIX: createRoom ORA HA gmName OPZIONALE ---
-  // Risolve l'errore: "Too few positional arguments: 2 required, 1 given"
   Future<String?> createRoom(String roomName, {String gmName = 'Game Master'}) async {
     if (myUserId == null) await init();
 
