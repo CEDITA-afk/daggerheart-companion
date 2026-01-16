@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:google_fonts/google_fonts.dart'; // Assicurati di avere questo import
+import 'package:google_fonts/google_fonts.dart'; 
 import '../../logic/combat_provider.dart';
 import '../../logic/room_provider.dart';
 import '../../logic/gm_provider.dart';
 import '../../data/models/adversary.dart';
+import '../../data/models/character.dart';
 import '../../data/data_manager.dart';
 import '../widgets/adversary_details_dialog.dart';
 import 'character_sheet_screen.dart';
@@ -19,11 +20,60 @@ class CombatScreen extends StatefulWidget {
 
 class _CombatScreenState extends State<CombatScreen> {
 
-  // --- DIALOG PER AGGIUNGERE NEMICI CON FILTRI ---
+  // --- 1. DIALOG PER AGGIUNGERE GIOCATORI ---
+  void _showAddPlayerDialog(BuildContext context, RoomProvider room, CombatProvider combat) {
+    // Filtra i giocatori connessi che NON sono ancora nel combattimento
+    final availablePlayers = room.connectedPlayers.where((p) {
+      return !combat.activeCharacters.any((c) => c.id == p['id']);
+    }).toList();
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1E1E24),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: const BorderSide(color: Color(0xFFD4AF37))),
+        title: Text("AGGIUNGI EROE", style: GoogleFonts.cinzel(color: Colors.white, fontWeight: FontWeight.bold)),
+        content: availablePlayers.isEmpty
+            ? const Text("Nessun giocatore disponibile o tutti già presenti.", style: TextStyle(color: Colors.grey))
+            : SizedBox(
+                width: double.maxFinite,
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: availablePlayers.length,
+                  itemBuilder: (ctx, index) {
+                    final p = availablePlayers[index];
+                    return ListTile(
+                      leading: const Icon(Icons.person, color: Colors.blueAccent),
+                      title: Text(p['name'] ?? "Sconosciuto", style: const TextStyle(color: Colors.white)),
+                      subtitle: Text("Livello ${p['level'] ?? 1}", style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                      trailing: const Icon(Icons.add_circle, color: Colors.green),
+                      onTap: () {
+                        try {
+                          // Converte la mappa JSON in oggetto Character
+                          final char = Character.fromJson(p);
+                          combat.addCharacter(char);
+                          Navigator.pop(ctx);
+                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("${char.name} aggiunto!")));
+                        } catch (e) {
+                          print("Errore aggiunta personaggio: $e");
+                        }
+                      },
+                    );
+                  },
+                ),
+              ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Chiudi", style: TextStyle(color: Colors.white54)))
+        ],
+      ),
+    );
+  }
+
+  // --- 2. DIALOG PER AGGIUNGERE NEMICI (CON FILTRI) ---
   void _showAddEnemyDialog(BuildContext context, CombatProvider combat) {
     showModalBottomSheet(
       context: context,
-      isScrollControlled: true, // Permette al dialog di espandersi
+      isScrollControlled: true, 
       backgroundColor: const Color(0xFF1E1E1E),
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (ctx) => DraggableScrollableSheet(
@@ -48,8 +98,9 @@ class _CombatScreenState extends State<CombatScreen> {
         return Scaffold(
           appBar: AppBar(
             title: const Text("REGIA SCONTRO", style: TextStyle(fontFamily: 'Cinzel')),
-            backgroundColor: Colors.red[900],
+            backgroundColor: const Color(0xFF1E1E1E),
             actions: [
+              // Tasto Sync
               IconButton(
                 icon: const Icon(Icons.cloud_upload),
                 tooltip: "Invia ai Giocatori",
@@ -58,53 +109,92 @@ class _CombatScreenState extends State<CombatScreen> {
                    room.syncCombatData(gm.fear, gm.actionTokens, allActive);
                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Dati inviati ai giocatori!")));
                 },
+              ),
+              // Tasto Refresh
+              IconButton(
+                icon: const Icon(Icons.refresh),
+                onPressed: () => room.init(), 
               )
             ],
           ),
+          backgroundColor: const Color(0xFF121212),
           body: ListView(
             padding: const EdgeInsets.all(16),
             children: [
-              // --- EROI ---
-              const Text("EROI", style: TextStyle(color: Colors.blueAccent, fontWeight: FontWeight.bold)),
+              
+              // --- SEZIONE EROI ---
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text("EROI", style: TextStyle(color: Colors.blueAccent, fontWeight: FontWeight.bold, fontSize: 16)),
+                  // FIX: Tasto Aggiungi Eroe ripristinato
+                  IconButton(
+                    icon: const Icon(Icons.add_circle, color: Colors.blueAccent), 
+                    onPressed: () => _showAddPlayerDialog(context, room, combat)
+                  ),
+                ],
+              ),
+              
               if (characters.isEmpty) 
-                const Padding(padding: EdgeInsets.all(8), child: Text("Nessun eroe.", style: TextStyle(color: Colors.grey))),
+                const Padding(padding: EdgeInsets.all(8), child: Text("Nessun eroe in combattimento.", style: TextStyle(color: Colors.white30, fontStyle: FontStyle.italic))),
               
               ...characters.map((char) => Card(
                 color: const Color(0xFF1A237E).withOpacity(0.4),
+                margin: const EdgeInsets.only(bottom: 8),
                 child: ListTile(
                   leading: const Icon(Icons.person, color: Colors.blueAccent),
-                  title: Text(char.name, style: const TextStyle(color: Colors.white)),
+                  title: Text(char.name, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                  subtitle: Text("HP: ${char.currentHp} / ${char.maxHp}", style: const TextStyle(color: Colors.white70)),
                   trailing: IconButton(icon: const Icon(Icons.close, color: Colors.red), onPressed: () => combat.activeCharacters.removeWhere((c) => c.id == char.id)),
                   onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => CharacterSheetScreen(character: char))),
                 ),
               )),
 
               const SizedBox(height: 24),
+              const Divider(color: Colors.white24),
+              const SizedBox(height: 8),
 
-              // --- AVVERSARI ---
+              // --- SEZIONE AVVERSARI ---
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text("AVVERSARI", style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
-                  IconButton(icon: const Icon(Icons.add_circle, color: Colors.redAccent), onPressed: () => _showAddEnemyDialog(context, combat)),
+                  const Text("AVVERSARI", style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold, fontSize: 16)),
+                  IconButton(
+                    icon: const Icon(Icons.add_circle, color: Colors.redAccent), 
+                    onPressed: () => _showAddEnemyDialog(context, combat)
+                  ),
                 ],
               ),
               
+              if (enemies.isEmpty) 
+                const Padding(padding: EdgeInsets.all(8), child: Text("Nessun avversario presente.", style: TextStyle(color: Colors.white30, fontStyle: FontStyle.italic))),
+
               ...enemies.map((enemy) => Card(
                 color: const Color(0xFFB71C1C).withOpacity(0.2),
+                margin: const EdgeInsets.only(bottom: 8),
                 child: ListTile(
-                  leading: const Icon(Icons.android, color: Colors.redAccent),
+                  leading: CircleAvatar(
+                    backgroundColor: Colors.black45,
+                    child: Text(enemy.name.substring(0,1), style: const TextStyle(color: Colors.redAccent)),
+                  ),
                   title: Text(enemy.name, style: const TextStyle(color: Colors.white)),
                   subtitle: Row(
                     children: [
-                      IconButton(icon: const Icon(Icons.remove, size: 16, color: Colors.red), onPressed: () => combat.modifyHp(enemy.id, -1)),
-                      Text(" ${enemy.currentHp} / ${enemy.maxHp} ", style: const TextStyle(color: Colors.white)),
-                      IconButton(icon: const Icon(Icons.add, size: 16, color: Colors.green), onPressed: () => combat.modifyHp(enemy.id, 1)),
+                      IconButton(
+                        icon: const Icon(Icons.remove, size: 16, color: Colors.red), 
+                        onPressed: () => combat.modifyHp(enemy.id, -1),
+                        constraints: const BoxConstraints(),
+                      ),
+                      Text(" ${enemy.currentHp} / ${enemy.maxHp} ", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                      IconButton(
+                        icon: const Icon(Icons.add, size: 16, color: Colors.green), 
+                        onPressed: () => combat.modifyHp(enemy.id, 1),
+                        constraints: const BoxConstraints(),
+                      ),
                     ],
                   ),
                   trailing: IconButton(icon: const Icon(Icons.delete, color: Colors.grey), onPressed: () => combat.removeAdversary(enemy.id)),
                   onTap: () {
-                    // Dettagli Nemico
                     showDialog(context: context, builder: (_) => AdversaryDetailsDialog(data: {
                       'name': enemy.name,
                       'tier': enemy.tier,
@@ -134,7 +224,7 @@ class _CombatScreenState extends State<CombatScreen> {
   }
 }
 
-// --- WIDGET CONTENUTO DIALOGO CON FILTRI ---
+// --- WIDGET DIALOGO AVANZATO NEMICI (INVARIATO) ---
 class _AddAdversaryDialogContent extends StatefulWidget {
   final ScrollController scrollController;
   final CombatProvider combatProvider;
@@ -149,9 +239,8 @@ class _AddAdversaryDialogContentState extends State<_AddAdversaryDialogContent> 
   List<Adversary> _allAdversaries = [];
   List<Adversary> _filteredAdversaries = [];
   
-  // Filtri
   String? _selectedCampaign;
-  String? _selectedTierLevel; // "0", "1", "2", ...
+  String? _selectedTierLevel; 
   String _searchQuery = "";
 
   @override
@@ -164,18 +253,12 @@ class _AddAdversaryDialogContentState extends State<_AddAdversaryDialogContent> 
   void _applyFilters() {
     setState(() {
       _filteredAdversaries = _allAdversaries.where((adv) {
-        // Filtro Ricerca Testuale
         bool matchesSearch = adv.name.toLowerCase().contains(_searchQuery.toLowerCase());
-        
-        // Filtro Campagna
         bool matchesCampaign = _selectedCampaign == null || adv.campaign == _selectedCampaign;
-        
-        // Filtro Tier (Estrae il numero dalla stringa "Tier X ...")
         bool matchesTier = true;
         if (_selectedTierLevel != null) {
           matchesTier = adv.tier.contains("Tier $_selectedTierLevel");
         }
-
         return matchesSearch && matchesCampaign && matchesTier;
       }).toList();
     });
@@ -183,9 +266,7 @@ class _AddAdversaryDialogContentState extends State<_AddAdversaryDialogContent> 
 
   @override
   Widget build(BuildContext context) {
-    // Estrai opzioni uniche per i filtri
     final campaigns = _allAdversaries.map((a) => a.campaign).toSet().toList();
-    // Estrai i numeri dei tier (0, 1, 2, ...)
     final tiers = _allAdversaries
         .map((a) {
           final match = RegExp(r'Tier (\d+)').firstMatch(a.tier);
@@ -194,7 +275,7 @@ class _AddAdversaryDialogContentState extends State<_AddAdversaryDialogContent> 
         .where((t) => t != null)
         .toSet()
         .toList();
-    tiers.sort(); // Ordina i tier
+    tiers.sort();
 
     return Padding(
       padding: const EdgeInsets.all(16.0),
@@ -203,7 +284,6 @@ class _AddAdversaryDialogContentState extends State<_AddAdversaryDialogContent> 
           const Text("AGGIUNGI AVVERSARIO", style: TextStyle(color: Colors.white, fontFamily: 'Cinzel', fontWeight: FontWeight.bold, fontSize: 18)),
           const SizedBox(height: 16),
           
-          // --- BARRA DI RICERCA ---
           TextField(
             style: const TextStyle(color: Colors.white),
             decoration: InputDecoration(
@@ -223,12 +303,10 @@ class _AddAdversaryDialogContentState extends State<_AddAdversaryDialogContent> 
           
           const SizedBox(height: 12),
 
-          // --- FILTRI CHIPS ---
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             child: Row(
               children: [
-                // Filtro Campagna
                 if (campaigns.isNotEmpty) ...[
                   const Text("Origine: ", style: TextStyle(color: Colors.grey, fontSize: 12)),
                   const SizedBox(width: 8),
@@ -250,7 +328,6 @@ class _AddAdversaryDialogContentState extends State<_AddAdversaryDialogContent> 
                   const SizedBox(width: 16),
                 ],
 
-                // Filtro Tier
                 if (tiers.isNotEmpty) ...[
                   const Text("Tier: ", style: TextStyle(color: Colors.grey, fontSize: 12)),
                   const SizedBox(width: 8),
@@ -276,7 +353,6 @@ class _AddAdversaryDialogContentState extends State<_AddAdversaryDialogContent> 
 
           const Divider(color: Colors.white24),
 
-          // --- LISTA RISULTATI ---
           Expanded(
             child: _filteredAdversaries.isEmpty 
             ? Center(
@@ -286,14 +362,14 @@ class _AddAdversaryDialogContentState extends State<_AddAdversaryDialogContent> 
                     const Icon(Icons.search_off, size: 48, color: Colors.grey),
                     const SizedBox(height: 8),
                     Text(
-                      _allAdversaries.isEmpty ? "Nessun dato caricato nel DataManager." : "Nessun nemico trovato con questi filtri.", 
+                      _allAdversaries.isEmpty ? "Nessun dato caricato." : "Nessun nemico trovato.", 
                       style: const TextStyle(color: Colors.grey)
                     ),
                   ],
                 ),
               )
             : ListView.builder(
-                controller: widget.scrollController, // Importante per lo scroll nel bottom sheet
+                controller: widget.scrollController,
                 itemCount: _filteredAdversaries.length,
                 itemBuilder: (c, i) {
                   final adv = _filteredAdversaries[i];
@@ -315,12 +391,11 @@ class _AddAdversaryDialogContentState extends State<_AddAdversaryDialogContent> 
                       ),
                       isThreeLine: true,
                       onTap: () {
-                        // CLONA E AGGIUNGI
                         final enemyObj = adv.clone();
                         widget.combatProvider.addAdversary(enemyObj);
                         Navigator.pop(context);
                         ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text("${enemyObj.name} aggiunto allo scontro!"), duration: const Duration(seconds: 1))
+                          SnackBar(content: Text("${enemyObj.name} aggiunto!"), duration: const Duration(seconds: 1))
                         );
                       },
                     ),
