@@ -11,140 +11,192 @@ import 'logic/gm_provider.dart';
 import 'data/data_manager.dart';
 import 'ui/screens/startup_screen.dart';
 
-void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  await DataManager().loadAllData();
 
-  try {
-    await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-  } catch (e) {
-    print("Errore Firebase: $e");
-  }
-
-  runApp(const MyApp());
+void main() {
+  runApp(const DaggerheartGMScreen());
 }
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+class DaggerheartGMScreen extends StatelessWidget {
+  const DaggerheartGMScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    // --- PALETTE DAGGERHEART ---
-    const dhGold = Color(0xFFCFB876);        // Oro spento/Pergamena
-    const dhGoldBright = Color(0xFFF4D03F);  // Oro brillante (accenti)
-    const dhBackground = Color(0xFF1A1625);  // Viola scurissimo (quasi nero)
-    const dhSurface = Color(0xFF2A2438);     // Viola scuro (card/dialog)
-    const dhPurpleAccent = Color(0xFF6A4C93); // Viola medio
+    return MaterialApp(
+      title: 'DH GM Screen Lite',
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(
+        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
+        useMaterial3: true,
+      ),
+      home: const ResponsiveDashboard(),
+    );
+  }
+}
 
-    return MultiProvider(
-      providers: [
-        ChangeNotifierProvider(create: (_) => RoomProvider()),
-        ChangeNotifierProvider(create: (_) => CreationProvider()),
-        ChangeNotifierProvider(create: (_) => CombatProvider()),
-        ChangeNotifierProvider(create: (_) => GmProvider()),
-      ],
-      child: MaterialApp(
-        title: 'Daggerheart Companion',
-        debugShowCheckedModeBanner: false,
-        theme: ThemeData.dark().copyWith(
-          scaffoldBackgroundColor: dhBackground,
-          primaryColor: dhGold,
-          
-          colorScheme: const ColorScheme.dark(
-            primary: dhGold,
-            onPrimary: Colors.black, // Testo nero su bottoni oro
-            secondary: dhPurpleAccent,
-            surface: dhSurface,
-            onSurface: Colors.white,
-            error: Color(0xFFCF6679),
-          ),
-          
-          // Testi
-          textTheme: GoogleFonts.latoTextTheme(ThemeData.dark().textTheme).apply(
-            bodyColor: const Color(0xFFE0E0E0), // Bianco sporco per leggibilit�
-            displayColor: dhGold,
-          ),
-          
-          // AppBar
-          appBarTheme: const AppBarTheme(
-            backgroundColor: dhBackground,
-            elevation: 0,
-            centerTitle: true,
-            titleTextStyle: TextStyle(
-              fontFamily: 'Cinzel', 
-              fontSize: 22, 
-              fontWeight: FontWeight.bold, 
-              color: dhGold
+class ResponsiveDashboard extends StatefulWidget {
+  const ResponsiveDashboard({super.key});
+
+  @override
+  State<ResponsiveDashboard> createState() => _ResponsiveDashboardState();
+}
+
+class _ResponsiveDashboardState extends State<ResponsiveDashboard> {
+  int _selectedIndex = 0;
+
+  // Le 4 schermate dell'app
+  final List<Widget> _pages = const [
+    RulesTab(),
+    PartyTab(),
+    AdversaryTab(),
+    NotesTab(),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Se lo schermo è largo (iPad o Web)
+        if (constraints.maxWidth >= 600) {
+          return Scaffold(
+            appBar: AppBar(
+              title: const Text('Daggerheart GM Screen', style: TextStyle(fontWeight: FontWeight.bold)),
+              backgroundColor: Theme.of(context).colorScheme.inversePrimary,
             ),
-            iconTheme: IconThemeData(color: dhGold),
-          ),
-          
-          // Bottoni
-          elevatedButtonTheme: ElevatedButtonThemeData(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: dhGold,
-              foregroundColor: Colors.black, // Testo scuro su oro
-              textStyle: const TextStyle(fontWeight: FontWeight.bold, fontFamily: 'Cinzel'),
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            body: Row(
+              children: [
+                NavigationRail(
+                  selectedIndex: _selectedIndex,
+                  onDestinationSelected: (int index) {
+                    setState(() {
+                      _selectedIndex = index;
+                    });
+                  },
+                  labelType: NavigationRailLabelType.all,
+                  destinations: const [
+                    NavigationRailDestination(icon: Icon(Icons.menu_book), label: Text('Regole')),
+                    NavigationRailDestination(icon: Icon(Icons.shield), label: Text('Party')),
+                    NavigationRailDestination(icon: Icon(Icons.warning), label: Text('Avversari')),
+                    NavigationRailDestination(icon: Icon(Icons.edit_note), label: Text('Note')),
+                  ],
+                ),
+                const VerticalDivider(thickness: 1, width: 1),
+                Expanded(child: _pages[_selectedIndex]),
+              ],
             ),
-          ),
-          
-          outlinedButtonTheme: OutlinedButtonThemeData(
-            style: OutlinedButton.styleFrom(
-              foregroundColor: dhGold,
-              side: const BorderSide(color: dhGold),
-              textStyle: const TextStyle(fontWeight: FontWeight.bold),
+          );
+        } else {
+          // Se lo schermo è stretto (iPhone)
+          return Scaffold(
+            appBar: AppBar(
+              title: const Text('DH GM Screen', style: TextStyle(fontWeight: FontWeight.bold)),
+              backgroundColor: Theme.of(context).colorScheme.inversePrimary,
             ),
-          ),
-          
-          // Input
-          inputDecorationTheme: InputDecorationTheme(
-            filled: true,
-            fillColor: dhSurface,
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: BorderSide.none,
+            body: _pages[_selectedIndex],
+            bottomNavigationBar: NavigationBar(
+              selectedIndex: _selectedIndex,
+              onDestinationSelected: (int index) {
+                setState(() {
+                  _selectedIndex = index;
+                });
+              },
+              destinations: const [
+                NavigationDestination(icon: Icon(Icons.menu_book), label: 'Regole'),
+                NavigationDestination(icon: Icon(Icons.shield), label: 'Party'),
+                NavigationDestination(icon: Icon(Icons.warning), label: 'Avversari'),
+                NavigationDestination(icon: Icon(Icons.edit_note), label: 'Note'),
+              ],
             ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: BorderSide(color: dhPurpleAccent.withOpacity(0.3)),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: const BorderSide(color: dhGold),
-            ),
-            labelStyle: const TextStyle(color: Colors.white60),
-            hintStyle: const TextStyle(color: Colors.white30),
-          ),
-          
-          // CORREZIONE QUI: Usa CardThemeData invece di CardTheme
-          cardTheme: CardThemeData(
-            color: dhSurface,
-            elevation: 4,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-              side: BorderSide(color: dhGold.withOpacity(0.1)), // Sottile bordo oro
-            ),
-          ),
-          
-          // CORREZIONE QUI: Usa DialogThemeData invece di DialogTheme
-          dialogTheme: DialogThemeData(
-            backgroundColor: dhSurface,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-              side: const BorderSide(color: dhGold, width: 2), // Bordo oro nei dialoghi
-            ),
-            titleTextStyle: const TextStyle(
-              fontFamily: 'Cinzel',
-              fontSize: 20,
-              color: dhGold,
-              fontWeight: FontWeight.bold
-            ),
-          ),
+          );
+        }
+      },
+    );
+  }
+}
+
+// --- CONTENUTI DELLE TAB CON CONSTRAINED BOX PER IPAD ---
+
+class RulesTab extends StatelessWidget {
+  const RulesTab({super.key});
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 800),
+        child: ListView(
+          padding: const EdgeInsets.all(16.0),
+          children: const [
+            Card(child: ListTile(title: Text('Action Roll (2d12)'), subtitle: Text('Hope Die vs Fear Die. \nSe Hope > Fear: Successo con Speranza.\nSe Fear > Hope: Successo con Conseguenza / Fallimento con Conseguenza.'))),
+            Card(child: ListTile(title: Text('Soglie di Danno (Damage Thresholds)'), subtitle: Text('Minor (1 HP) | Major (2 HP) | Severe (3 HP)'))),
+          ],
         ),
-        home: const StartupScreen(),
       ),
     );
   }
+}
+
+class PartyTab extends StatelessWidget {
+  const PartyTab({super.key});
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 800),
+        child: ListView(
+          padding: const EdgeInsets.all(16.0),
+          children: const [
+            ListTile(leading: Icon(Icons.person), title: Text('Eroe 1 (Rogue)'), subtitle: Text('Evasion: 14 | Armor: 2 | Hope: 3 | Stress: 1/5')),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class AdversaryTab extends StatelessWidget {
+  const AdversaryTab({super.key});
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 800),
+        child: ListView(
+          padding: const EdgeInsets.all(16.0),
+          children: const [
+            ListTile(leading: Icon(Icons.coronavirus, color: Colors.red), title: Text('Goblin Minion'), subtitle: Text('HP: 1 | Difficulty: 10 | Danno: d6 (Fisico)')),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class NotesTab extends StatelessWidget {
+  const NotesTab({super.key});
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 800),
+        child: ListView(
+          padding: const EdgeInsets.all(16.0),
+          children: const [
+            Card(
+              child: Padding(
+                padding: EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Dungeon Attuale', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                    SizedBox(height: 8),
+                    Text('Il boss ha una probabilità di essere nel dungeon, non è certo.'),
+                  ],
+                ),
+              ),
+            )
+          ],
+        ),
+      ),
+    );
+  }
+}
 }
